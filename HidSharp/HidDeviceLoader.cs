@@ -17,6 +17,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace HidSharp
@@ -36,17 +37,29 @@ namespace HidSharp
 
         public IEnumerable<HidDevice> GetDevices()
         {
-            return new Platform.Windows.WinHidDevicesEnumerable();
+            return Platform.HidSelector.Instance.GetDevices();
         }
 
-        public HidDevice GetDeviceOrDefault(int vendorID, int productID)
+        public IEnumerable<HidDevice> GetDevices
+            (int? vendorID = null, int? productID = null, int? productVersion = null, string serialNumber = null)
         {
-            foreach (var hid in GetDevices())
+            int vid = vendorID ?? -1, pid = productID ?? -1, ver = productVersion ?? -1;
+            foreach (HidDevice hid in GetDevices())
             {
-                if (hid.VendorID == vendorID && hid.ProductID == productID) { return hid; }
+                if ((hid.VendorID == vendorID || vid < 0) &&
+                    (hid.ProductID == productID || pid < 0) &&
+                    (hid.ProductVersion == productVersion || ver < 0) &&
+                    (hid.SerialNumber == serialNumber || string.IsNullOrEmpty(serialNumber)))
+                {
+                    yield return hid;
+                }
             }
+        }
 
-            return null;
+        public HidDevice GetDeviceOrDefault
+            (int? vendorID = null, int? productID = null, int? productVersion = null, string serialNumber = null)
+        {
+            return GetDevices(vendorID, productID, productVersion, serialNumber).FirstOrDefault();
         }
     }
 }

@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2010 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2010-2012 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -23,13 +23,34 @@ namespace HidSharp
     [ClassInterface(ClassInterfaceType.AutoDual), Guid("4D8A9A1A-D5CC-414e-8356-5A025EDA098D")]
     public abstract class HidDevice
     {
-        public abstract Stream Open();
+        public abstract HidStream Open();
 
-        public bool TryOpen(out Stream stream)
+        public virtual byte[] GetReportDescriptor()
         {
-            try { stream = Open(); return true; }
-            catch { stream = null; return false; }
+            throw new NotSupportedException(); // Windows without libusb can't...
         }
+
+        public bool TryOpen(out HidStream stream)
+        {
+            try
+			{
+				stream = Open();
+				return true;
+			}
+            catch (Exception e)
+			{
+#if DEBUG
+				Console.WriteLine(e);
+#endif
+				stream = null; return false;
+			}
+		}
+
+        public abstract int MaxInputReportLength { get; }
+
+        public abstract int MaxOutputReportLength { get; }
+
+        public abstract int MaxFeatureReportLength { get; }
 
         public abstract string Manufacturer
         {

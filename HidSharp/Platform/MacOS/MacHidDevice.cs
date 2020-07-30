@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2010 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -14,63 +14,49 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 #endregion
 
-#pragma warning disable 618
-
 using System;
-using System.IO;
-using System.Runtime.InteropServices;
+using System.Collections.Generic;
+using System.Linq;
 
-namespace HidSharp.Platform.Windows
+namespace HidSharp.Platform.MacOS
 {
-    sealed class WinHidDevice : HidDevice
+    class MacHidDevice : HidDevice
     {
-        string _path;
         string _manufacturer;
         string _productName;
         string _serialNumber;
         int _vid, _pid, _version;
         int _maxInput, _maxOutput, _maxFeature;
+        MacApi.io_string_t _path;
 
-        internal WinHidDevice(string path)
+        internal MacHidDevice(MacApi.io_string_t path)
         {
             _path = path;
         }
-
+		
         public override HidStream Open()
         {
-            var stream = new WinHidStream();
+            var stream = new MacHidStream();
             try { stream.Init(_path, this); return stream; }
             catch { stream.Close(); throw; }
         }
 
-        internal bool GetInfo(IntPtr handle)
+        internal bool GetInfo(int handle)
         {
-            WinApi.HIDD_ATTRIBUTES attributes = new WinApi.HIDD_ATTRIBUTES();
-            attributes.Size = Marshal.SizeOf(attributes);
-            if (!WinApi.HidD_GetAttributes(handle, ref attributes)) { return false; }
-            
-            _pid = attributes.ProductID;
-            _vid = attributes.VendorID;
-            _version = attributes.VersionNumber;
+            int? vid = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDVendorIDKey);
+            int? pid = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDProductIDKey);
+            int? version = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDVersionNumberKey);
+            if (vid == null || pid == null || version == null) { return false; }
 
-            char[] buffer = new char[128];
-            _manufacturer = WinApi.HidD_GetManufacturerString(handle, buffer, 256) ? WinApi.NTString(buffer) : "";
-            _productName = WinApi.HidD_GetProductString(handle, buffer, 256) ? WinApi.NTString(buffer) : "";
-            _serialNumber = WinApi.HidD_GetSerialNumberString(handle, buffer, 256) ? WinApi.NTString(buffer) : "";
-
-            IntPtr preparsed;
-            if (WinApi.HidD_GetPreparsedData(handle, out preparsed))
-            {
-                WinApi.HIDP_CAPS caps;
-                int statusCaps = WinApi.HidP_GetCaps(preparsed, out caps);
-                if (statusCaps == WinApi.HIDP_STATUS_SUCCESS)
-                {
-                    _maxInput = caps.InputReportByteLength;
-                    _maxOutput = caps.OutputReportByteLength;
-                    _maxFeature = caps.FeatureReportByteLength;
-                }
-                WinApi.HidD_FreePreparsedData(preparsed);
-            }
+            _vid = (int)vid;
+            _pid = (int)pid;
+            _version = (int)version;
+            _maxInput = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDMaxInputReportSizeKey) ?? 0;
+            _maxOutput = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDMaxOutputReportSizeKey) ?? 0;
+            _maxFeature = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDMaxFeatureReportSizeKey) ?? 0;
+            _manufacturer = MacApi.IORegistryGetCFProperty_String(handle, MacApi.kIOHIDManufacturerKey) ?? "";
+            _productName = MacApi.IORegistryGetCFProperty_String(handle, MacApi.kIOHIDProductKey) ?? "";
+            _serialNumber = MacApi.IORegistryGetCFProperty_String(handle, MacApi.kIOHIDSerialNumberKey) ?? "";
             return true;
         }
 
