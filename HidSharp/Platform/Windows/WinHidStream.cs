@@ -1,35 +1,35 @@
 ﻿#region License
 /* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
-   Permission to use, copy, modify, and/or distribute this software for any
-   purpose with or without fee is hereby granted, provided that the above
-   copyright notice and this permission notice appear in all copies.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-   THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-   WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-   MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-   ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-   WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-   ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+      http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License. */
 #endregion
 
 using System;
 using System.ComponentModel;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace HidSharp.Platform.Windows
 {
-    class WinHidStream : HidStream
+    sealed class WinHidStream : SysHidStream
     {
         object _readSync = new object(), _writeSync = new object();
         byte[] _readBuffer, _writeBuffer;
         IntPtr _handle, _closeEventHandle;
-        WinHidDevice _device;
 
-        internal WinHidStream()
+        internal WinHidStream(WinHidDevice device)
+            : base(device)
         {
             _closeEventHandle = NativeMethods.CreateManualResetEventOrThrow();
         }
@@ -40,12 +40,21 @@ namespace HidSharp.Platform.Windows
             NativeMethods.CloseHandle(_closeEventHandle);
         }
 
-        internal void Init(string path, WinHidDevice device)
+        internal void Init(string path)
         {
-            IntPtr handle = NativeMethods.CreateFileFromDevice(path, NativeMethods.EFileAccess.Read | NativeMethods.EFileAccess.Write, NativeMethods.EFileShare.All);
-            if (handle == (IntPtr)(-1)) { throw new IOException("Unable to open HID class device."); }
+            IntPtr handle = NativeMethods.CreateFileFromDevice(path, NativeMethods.EFileAccess.Read | NativeMethods.EFileAccess.Write, NativeMethods.EFileShare.Read | NativeMethods.EFileShare.Write);
+            if (handle == (IntPtr)(-1))
+            {
+                throw DeviceException.CreateIOException(Device, "Unable to open HID class device (" + path + ").");
+            }
 
-            _device = device;
+            int maxInputBuffers = Environment.OSVersion.Version >= new Version(5, 1) ? 512 : 200; // Windows 2000 supports 200. Windows XP supports 512.
+            if (!NativeMethods.HidD_SetNumInputBuffers(handle, maxInputBuffers))
+            {
+                NativeMethods.CloseHandle(handle);
+                throw new IOException("Failed to set input buffers.", new Win32Exception());
+            }
+
 			_handle = handle;
 			HandleInitAndOpen();
         }
@@ -96,16 +105,17 @@ namespace HidSharp.Platform.Windows
             {
 				lock (_readSync)
 				{
-	                int maxIn = _device.MaxInputReportLength;
-	                Array.Resize(ref _readBuffer, maxIn); if (count > maxIn) { count = maxIn; }
+	                int minIn = Device.GetMaxInputReportLength();
+                    if (minIn <= 0) { throw new IOException("Can't read from this device."); }
+                    if (_readBuffer == null || _readBuffer.Length < Math.Max(count, minIn)) { Array.Resize(ref _readBuffer, Math.Max(count, minIn)); }
 	
 	                fixed (byte* ptr = _readBuffer)
 	                {
                         var overlapped = stackalloc NativeOverlapped[1];
                         overlapped[0].EventHandle = @event;
-
+                        
                         NativeMethods.OverlappedOperation(_handle, @event, ReadTimeout, _closeEventHandle,
-                            NativeMethods.ReadFile(_handle, ptr, maxIn, IntPtr.Zero, overlapped),
+                            NativeMethods.ReadFile(_handle, ptr, Math.Max(count, minIn), IntPtr.Zero, overlapped),
                             overlapped, out bytesTransferred);
 
 	                    if (count > (int)bytesTransferred) { count = (int)bytesTransferred; }
@@ -150,9 +160,16 @@ namespace HidSharp.Platform.Windows
             {
 				lock (_writeSync)
 				{
-	                int maxOut = _device.MaxOutputReportLength;
-	                Array.Resize(ref _writeBuffer, maxOut); if (count > maxOut) { count = maxOut; }
-	                Array.Copy(buffer, offset, _writeBuffer, 0, count); count = maxOut;
+	                int minOut = Device.GetMaxOutputReportLength();
+                    if (minOut <= 0) { throw new IOException("Can't write to this device."); }
+                    if (_writeBuffer == null || _writeBuffer.Length < Math.Max(count, minOut)) { Array.Resize(ref _writeBuffer, Math.Max(count, minOut)); }
+	                Array.Copy(buffer, offset, _writeBuffer, 0, count);
+
+                    if (count < minOut)
+                    {
+                        Array.Clear(_writeBuffer, count, minOut - count);
+                        count = minOut;
+                    }
 	
 	                fixed (byte* ptr = _writeBuffer)
 	                {
@@ -163,7 +180,7 @@ namespace HidSharp.Platform.Windows
                             overlapped[0].EventHandle = @event;
 
                             NativeMethods.OverlappedOperation(_handle, @event, WriteTimeout, _closeEventHandle,
-	                            NativeMethods.WriteFile(_handle, ptr + offset0, count, IntPtr.Zero, overlapped),
+	                            NativeMethods.WriteFile(_handle, ptr + offset0, Math.Min(minOut, count), IntPtr.Zero, overlapped),
 	                            overlapped, out bytesTransferred);
 	                        count -= (int)bytesTransferred; offset0 += (int)bytesTransferred;
 	                    }
@@ -175,11 +192,6 @@ namespace HidSharp.Platform.Windows
 				HandleRelease();
                 NativeMethods.CloseHandle(@event);
             }
-        }
-
-        public override HidDevice Device
-        {
-            get { return _device; }
         }
     }
 }

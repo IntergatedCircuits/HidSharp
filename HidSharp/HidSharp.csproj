@@ -39,7 +39,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <RegisterForComInterop>true</RegisterForComInterop>
+    <RegisterForComInterop>false</RegisterForComInterop>
     <DocumentationFile>..\bin\HidSharp.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
@@ -47,6 +47,49 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AsyncResult.cs" />
+    <Compile Include="Exceptions\DeviceIOException.cs" />
+    <Compile Include="Exceptions\DeviceUnauthorizedAccessException.cs" />
+    <Compile Include="Exceptions\IDeviceException.cs" />
+    <Compile Include="Device.cs" />
+    <Compile Include="DeviceFilter.cs" />
+    <Compile Include="DeviceList.cs" />
+    <Compile Include="DeviceListChangedEventArgs.cs" />
+    <Compile Include="DeviceOpenUtility.cs" />
+    <Compile Include="DeviceException.cs" />
+    <Compile Include="LocalDeviceList.cs" />
+    <Compile Include="ImplementationDetail.cs" />
+    <Compile Include="DeviceStream.cs" />
+    <Compile Include="OpenOption.cs" />
+    <Compile Include="OpenPriority.cs" />
+    <Compile Include="OpenConfiguration.cs" />
+    <Compile Include="Platform\Linux\LinuxSerialDevice.cs" />
+    <Compile Include="Platform\Linux\LinuxSerialStream.cs" />
+    <Compile Include="Platform\Linux\NativeMethodsLibudev.cs" />
+    <Compile Include="Platform\Linux\NativeMethodsLibudev0.cs" />
+    <Compile Include="Platform\Linux\NativeMethodsLibudev1.cs" />
+    <Compile Include="Platform\MacOS\MacSerialDevice.cs" />
+    <Compile Include="Platform\MacOS\MacSerialStream.cs" />
+    <Compile Include="Platform\SysSerialStream.cs" />
+    <Compile Include="Platform\SystemEvents.cs" />
+    <Compile Include="Platform\SysHidStream.cs" />
+    <Compile Include="FilteredDeviceList.cs" />
+    <Compile Include="Platform\Windows\WinSerialDevice.cs" />
+    <Compile Include="Platform\Windows\WinSerialStream.cs" />
+    <Compile Include="Platform\Windows\WinHidDevice.ReportDescriptorReconstructor.cs" />
+    <Compile Include="Platform\Windows\WinHidDevice.ReportDescriptorBuilder.cs" />
+    <Compile Include="Reports\DataConvert.cs" />
+    <Compile Include="Reports\DataValue.cs" />
+    <Compile Include="Reports\DeviceItem.cs" />
+    <Compile Include="Reports\Input\DeviceItemInputParser.cs" />
+    <Compile Include="Reports\Input\HidDeviceInputReceiver.cs" />
+    <Compile Include="Reports\ReportDescriptorParseState.cs" />
+    <Compile Include="Reports\Units\UnitKind.cs" />
+    <Compile Include="Reports\Usage.cs" />
+    <Compile Include="Reports\ExpectedUsageType.cs" />
+    <Compile Include="SerialSettings.cs" />
+    <Compile Include="SerialDevice.cs" />
+    <Compile Include="SerialParity.cs" />
+    <Compile Include="SerialStream.cs" />
     <Compile Include="Throw.cs" />
     <Compile Include="HidDevice.cs" />
     <Compile Include="HidDeviceLoader.cs" />
@@ -70,31 +113,31 @@
     <Compile Include="Platform\Libusb\LibusbHidManager.cs" />
     <Compile Include="Platform\Unsupported\UnsupportedHidManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ReportDescriptors\CollectionType.cs" />
-    <Compile Include="ReportDescriptors\DataMainItemFlags.cs" />
-    <Compile Include="ReportDescriptors\GlobalItemTag.cs" />
-    <Compile Include="ReportDescriptors\Parser\LocalIndexes.cs" />
-    <Compile Include="ReportDescriptors\LocalItemTag.cs" />
-    <Compile Include="ReportDescriptors\EncodedItem.cs" />
-    <Compile Include="ReportDescriptors\MainItemTag.cs" />
-    <Compile Include="ReportDescriptors\ItemType.cs" />
-    <Compile Include="ReportDescriptors\Parser\IndexBase.cs" />
-    <Compile Include="ReportDescriptors\Parser\IndexList.cs" />
-    <Compile Include="ReportDescriptors\Parser\IndexRange.cs" />
-    <Compile Include="ReportDescriptors\Parser\Report.cs" />
-    <Compile Include="ReportDescriptors\Parser\ReportCollection.cs" />
-    <Compile Include="ReportDescriptors\Parser\ReportDescriptorParser.cs" />
-    <Compile Include="ReportDescriptors\Parser\ReportMainItem.cs" />
-    <Compile Include="ReportDescriptors\Parser\ReportSegment.cs" />
-    <Compile Include="ReportDescriptors\Parser\ReportType.cs" />
-    <Compile Include="ReportDescriptors\Units\CurrentUnit.cs" />
-    <Compile Include="ReportDescriptors\Units\LengthUnit.cs" />
-    <Compile Include="ReportDescriptors\Units\LuminousIntensityUnit.cs" />
-    <Compile Include="ReportDescriptors\Units\MassUnit.cs" />
-    <Compile Include="ReportDescriptors\Units\TemperatureUnit.cs" />
-    <Compile Include="ReportDescriptors\Units\TimeUnit.cs" />
-    <Compile Include="ReportDescriptors\Units\Unit.cs" />
-    <Compile Include="ReportDescriptors\Units\UnitSystem.cs" />
+    <Compile Include="Reports\Encodings\CollectionType.cs" />
+    <Compile Include="Reports\DataItemFlags.cs" />
+    <Compile Include="Reports\Encodings\GlobalItemTag.cs" />
+    <Compile Include="Reports\Encodings\LocalItemTag.cs" />
+    <Compile Include="Reports\Encodings\EncodedItem.cs" />
+    <Compile Include="Reports\Encodings\MainItemTag.cs" />
+    <Compile Include="Reports\Encodings\ItemType.cs" />
+    <Compile Include="Reports\Indexes.cs" />
+    <Compile Include="Reports\IndexList.cs" />
+    <Compile Include="Reports\IndexRange.cs" />
+    <Compile Include="Reports\Report.cs" />
+    <Compile Include="Reports\DescriptorCollectionItem.cs" />
+    <Compile Include="Reports\ReportDescriptor.cs" />
+    <Compile Include="Reports\DescriptorItem.cs" />
+    <Compile Include="Reports\DataItem.cs" />
+    <Compile Include="Reports\ReportType.cs" />
+    <Compile Include="Reports\Units\CurrentUnit.cs" />
+    <Compile Include="Reports\Units\LengthUnit.cs" />
+    <Compile Include="Reports\Units\LuminousIntensityUnit.cs" />
+    <Compile Include="Reports\Units\MassUnit.cs" />
+    <Compile Include="Reports\Units\TemperatureUnit.cs" />
+    <Compile Include="Reports\Units\TimeUnit.cs" />
+    <Compile Include="Reports\Units\Unit.cs" />
+    <Compile Include="Reports\Units\UnitSystem.cs" />
+    <Compile Include="Utility\BcdHelper.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

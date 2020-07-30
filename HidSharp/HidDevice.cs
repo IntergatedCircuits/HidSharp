@@ -1,23 +1,26 @@
 ﻿#region License
-/* Copyright 2010-2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
+/* Copyright 2010-2013, 2017 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
-   Permission to use, copy, modify, and/or distribute this software for any
-   purpose with or without fee is hereby granted, provided that the above
-   copyright notice and this permission notice appear in all copies.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-   THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-   WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-   MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-   ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-   WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-   ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+      http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License. */
 #endregion
 
 using System;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
+using HidSharp.Reports;
 
 namespace HidSharp
 {
@@ -25,80 +28,128 @@ namespace HidSharp
     /// Represents a USB HID class device.
     /// </summary>
     [ComVisible(true), Guid("4D8A9A1A-D5CC-414e-8356-5A025EDA098D")]
-    public abstract class HidDevice
+    public abstract class HidDevice : Device
     {
+        /// <inheritdoc/>
+        public new HidStream Open()
+        {
+            return (HidStream)base.Open(null);
+        }
+
+        /// <inheritdoc/>
+        public new HidStream Open(OpenConfiguration openConfig)
+        {
+            return (HidStream)base.Open(openConfig);
+        }
+
+        /// <inheritdoc/>
+        public override string GetFriendlyName()
+        {
+            return GetProductName();
+        }
+
         /// <summary>
-        /// Makes a connection to the USB HID class device, or throws an exception if the connection cannot be made.
+        /// Returns the manufacturer name.
         /// </summary>
-        /// <returns>The stream to use to communicate with the device.</returns>
-        public abstract HidStream Open();
+        public abstract string GetManufacturer();
+
+        /// <summary>
+        /// Returns the product name.
+        /// </summary>
+        public abstract string GetProductName();
+
+        /// <summary>
+        /// Returns the device serial number.
+        /// </summary>
+        public abstract string GetSerialNumber();
+
+        /// <summary>
+        /// Returns the maximum input report length, including the Report ID byte.
+        /// If the device does not use Report IDs, the first byte will always be 0.
+        /// </summary>
+        public abstract int GetMaxInputReportLength();
+
+        /// <summary>
+        /// Returns the maximum output report length, including the Report ID byte.
+        /// If the device does not use Report IDs, use 0 for the first byte.
+        /// </summary>
+        public abstract int GetMaxOutputReportLength();
+
+        /// <summary>
+        /// Returns the maximum feature report length, including the Report ID byte.
+        /// If the device does not use Report IDs, use 0 for the first byte.
+        /// </summary>
+        public abstract int GetMaxFeatureReportLength();
+
+        /// <summary>
+        /// Retrieves and parses the report descriptor of the USB device.
+        /// </summary>
+        /// <returns>The parsed report descriptor.</returns>
+        public ReportDescriptor GetReportDescriptor()
+        {
+            return new ReportDescriptor(GetRawReportDescriptor());
+        }
 
         /// <summary>
         /// Returns the raw report descriptor of the USB device.
-        /// Currently this is only supported on Linux.
         /// </summary>
-        /// <returns>The report descriptor.</returns>
-        public virtual byte[] GetReportDescriptor()
+        /// <returns>The raw report descriptor.</returns>
+        public virtual byte[] GetRawReportDescriptor()
         {
-            throw new NotSupportedException(); // Windows without libusb can't... Linux can.
+            throw new NotSupportedException(); // Windows reconstructs it. Linux can retrieve it. MacOS 10.8+ can retrieve it as well.
         }
 
+        /*
+        TODO
+        public virtual string[] GetDevicePathHierarchy()
+        {
+            throw new NotSupportedException();
+        }
+        */
+
         /// <summary>
-        /// Tries to make a connection to the USB HID class device.
+        /// Returns the serial ports of the composite USB device.
+        /// Currently this is only supported on Windows.
         /// </summary>
-        /// <param name="stream">The stream to use to communicate with the device.</param>
-        /// <returns>True if the connetion was successful.</returns>
+        /// <returns>Serial ports of the USB device.</returns>
+        public virtual string[] GetSerialPorts()
+        {
+            throw new NotSupportedException();
+        }
+
+        /// <inheritdoc/>
+        public override string ToString()
+        {
+            string manufacturer = "(unnamed manufacturer)";
+            try { manufacturer = GetManufacturer(); } catch { }
+
+            string productName = "(unnamed product)";
+            try { productName = GetProductName(); } catch { }
+
+            string serialNumber = "(no serial number)";
+            try { serialNumber = GetSerialNumber(); } catch { }
+
+            return string.Format(CultureInfo.InvariantCulture, "{0} {1} {2} (VID {3}, PID {4}, version {5})",
+                manufacturer, productName, serialNumber, VendorID, ProductID, ReleaseNumber);
+        }
+
+        /// <inheritdoc/>
         public bool TryOpen(out HidStream stream)
         {
-            try
-			{
-				stream = Open();
-				return true;
-			}
-            catch (Exception e)
-			{
-#if DEBUG
-				Console.WriteLine(e);
-#endif
-				stream = null; return false;
-			}
-		}
-
-        /// <summary>
-        /// The operating system's name for the device.
-        /// 
-        /// If you have multiple devices with the same Vendor ID, Product ID, Serial Number. etc.,
-        /// this may be useful for differentiating them.
-        /// </summary>
-        public abstract string DevicePath
-        {
-            get;
+            return TryOpen(null, out stream);
         }
 
-        /// <summary>
-        /// The maximum input report length, including the Report ID byte.
-        /// If the device does not use Report IDs, the first byte will always be 0.
-        /// </summary>
-        public abstract int MaxInputReportLength { get; }
-
-        /// <summary>
-        /// The maximum output report length, including the Report ID byte.
-        /// If the device does not use Report IDs, use 0 for the first byte.
-        /// </summary>
-        public abstract int MaxOutputReportLength { get; }
-
-        /// <summary>
-        /// The maximum feature report length, including the Report ID byte.
-        /// If the device does not use Report IDs, use 0 for the first byte.
-        /// </summary>
-        public abstract int MaxFeatureReportLength { get; }
-
-        /// <summary>
-        /// The manufacturer name.
-        /// </summary>
-        public abstract string Manufacturer
+        /// <inheritdoc/>
+        public bool TryOpen(OpenConfiguration openConfig, out HidStream stream)
         {
-            get;
+            DeviceStream baseStream;
+            bool result = base.TryOpen(openConfig, out baseStream);
+            stream = (HidStream)baseStream; return result;
+		}
+
+        public override bool HasImplementationDetail(Guid detail)
+        {
+            return base.HasImplementationDetail(detail) || detail == ImplementationDetail.HidDevice;
         }
 
         /// <summary>
@@ -110,28 +161,26 @@ namespace HidSharp
         }
 
         /// <summary>
-        /// The product name.
+        /// The device release number.
         /// </summary>
-        public abstract string ProductName
+        public Version ReleaseNumber
+        {
+            get { return Utility.BcdHelper.ToVersion(ReleaseNumberBcd); }
+        }
+
+        /// <summary>
+        /// The device release number, in binary-coded decimal.
+        /// </summary>
+        public abstract int ReleaseNumberBcd
         {
             get;
         }
 
-        /// <summary>
-        /// The product version.
-        /// This is a 16-bit number encoding the major and minor versions in the upper and lower 8 bits, respectively.
-        /// </summary>
-        public abstract int ProductVersion
+        /// <exclude />
+        [Obsolete("Use ReleaseNumberBcd instead."), EditorBrowsable(EditorBrowsableState.Never)]
+        public virtual int ProductVersion
         {
-            get;
-        }
-
-        /// <summary>
-        /// The device serial number.
-        /// </summary>
-        public abstract string SerialNumber
-        {
-            get;
+            get { return ReleaseNumberBcd; }
         }
 
         /// <summary>
@@ -142,12 +191,130 @@ namespace HidSharp
             get;
         }
 
-        /// <inheritdoc />
-        public override string ToString()
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
+        public virtual string Manufacturer
         {
-            return string.Format(CultureInfo.InvariantCulture, "{0} ({1}VID {2}, PID {3}, version {4})",
-                Manufacturer.Length > 0 || ProductName.Length > 0 ? Manufacturer.Trim() + " " + ProductName.Trim() : "(unnamed)",
-                SerialNumber.Length > 0 ? "serial " + SerialNumber.Trim() + ", " : "", VendorID, ProductID, ProductVersion);
+            get
+            {
+                try
+                {
+                    return GetManufacturer() ?? "";
+                }
+                catch (IOException)
+                {
+                    return "";
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return "";
+                }
+            }
+        }
+
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
+        public virtual string ProductName
+        {
+            get
+            {
+                try
+                {
+                    return GetProductName() ?? "";
+                }
+                catch (IOException)
+                {
+                    return "";
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return "";
+                }
+            }
+        }
+
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
+        public virtual string SerialNumber
+        {
+            get
+            {
+                try
+                {
+                    return GetSerialNumber() ?? "";
+                }
+                catch (IOException)
+                {
+                    return "";
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return "";
+                }
+            }
+        }
+
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
+        public virtual int MaxInputReportLength
+        {
+            get
+            {
+                try
+                {
+                    return GetMaxInputReportLength();
+                }
+                catch (IOException)
+                {
+                    return 0;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return 0;
+                }
+            }
+        }
+
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
+        public virtual int MaxOutputReportLength
+        {
+            get
+            {
+                try
+                {
+                    return GetMaxOutputReportLength();
+                }
+                catch (IOException)
+                {
+                    return 0;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return 0;
+                }
+            }
+        }
+
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
+        public virtual int MaxFeatureReportLength
+        {
+            get
+            {
+                try
+                {
+                    return GetMaxFeatureReportLength();
+                }
+                catch (IOException)
+                {
+                    return 0;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return 0;
+                }
+            }
         }
     }
 }

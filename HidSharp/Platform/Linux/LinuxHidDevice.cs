@@ -1,25 +1,30 @@
 ﻿#region License
-/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
+/* Copyright 2012-2015, 2017 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
-   Permission to use, copy, modify, and/or distribute this software for any
-   purpose with or without fee is hereby granted, provided that the above
-   copyright notice and this permission notice appear in all copies.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-   THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-   WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-   MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-   ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-   WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-   ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+      http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License. */
 #endregion
 
 using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using HidSharp.Exceptions;
 
 namespace HidSharp.Platform.Linux
 {
-    class LinuxHidDevice : HidDevice
+    sealed class LinuxHidDevice : HidDevice
     {
+        object _getInfoLock;
         string _manufacturer;
         string _productName;
         string _serialNumber;
@@ -27,34 +32,134 @@ namespace HidSharp.Platform.Linux
         int _vid, _pid, _version;
         int _maxInput, _maxOutput, _maxFeature;
         bool _reportsUseID;
-        string _path;
+        string _path, _fileSystemName;
 
-        public LinuxHidDevice(string path)
+        LinuxHidDevice()
         {
-            _path = path;
+            _getInfoLock = new object();
         }
 
-        public override HidStream Open()
+        internal static LinuxHidDevice TryCreate(string path)
         {
-            var stream = new LinuxHidStream();
-            try { stream.Init(_path, this); return stream; }
+            var d = new LinuxHidDevice() { _path = path };
+
+            IntPtr udev = NativeMethodsLibudev.Instance.udev_new();
+            if (IntPtr.Zero != udev)
+            {
+                try
+                {
+                    IntPtr device = NativeMethodsLibudev.Instance.udev_device_new_from_syspath(udev, d._path);
+                    if (device != IntPtr.Zero)
+                    {
+                        try
+                        {
+                            string devnode = NativeMethodsLibudev.Instance.udev_device_get_devnode(device);
+                            if (devnode != null)
+                            {
+                                d._fileSystemName = devnode;
+
+                                //if (NativeMethodsLibudev.Instance.udev_device_get_is_initialized(device) > 0)
+                                {
+                                    IntPtr parent = NativeMethodsLibudev.Instance.udev_device_get_parent_with_subsystem_devtype(device, "usb", "usb_device");
+                                    if (IntPtr.Zero != parent)
+                                    {
+                                        string manufacturer = NativeMethodsLibudev.Instance.udev_device_get_sysattr_value(parent, "manufacturer");
+                                        string productName = NativeMethodsLibudev.Instance.udev_device_get_sysattr_value(parent, "product");
+                                        string serialNumber = NativeMethodsLibudev.Instance.udev_device_get_sysattr_value(parent, "serial");
+                                        string idVendor = NativeMethodsLibudev.Instance.udev_device_get_sysattr_value(parent, "idVendor");
+                                        string idProduct = NativeMethodsLibudev.Instance.udev_device_get_sysattr_value(parent, "idProduct");
+                                        string bcdDevice = NativeMethodsLibudev.Instance.udev_device_get_sysattr_value(parent, "bcdDevice");
+
+                                        int vid, pid, version;
+                                        if (NativeMethods.TryParseHex(idVendor, out vid) &&
+                                            NativeMethods.TryParseHex(idProduct, out pid) &&
+                                            NativeMethods.TryParseHex(bcdDevice, out version))
+                                        {
+                                            d._vid = vid;
+                                            d._pid = pid;
+                                            d._version = version;
+                                            d._manufacturer = manufacturer;
+                                            d._productName = productName;
+                                            d._serialNumber = serialNumber;
+                                            return d;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            NativeMethodsLibudev.Instance.udev_device_unref(device);
+                        }
+                    }
+                }
+                finally
+                {
+                    NativeMethodsLibudev.Instance.udev_unref(udev);
+                }
+            }
+
+            return null;
+        }
+
+        protected override DeviceStream OpenDeviceDirectly(OpenConfiguration openConfig)
+        {
+            RequiresGetInfo();
+
+            var stream = new LinuxHidStream(this);
+            try { stream.Init(_path); return stream; }
             catch { stream.Close(); throw; }
         }
 
-        public override byte[] GetReportDescriptor()
+        public override string GetManufacturer()
         {
+            if (_manufacturer == null) { throw DeviceException.CreateIOException(this, "Unnamed manufacturer."); }
+            return _manufacturer;
+        }
+
+        public override string GetProductName()
+        {
+            if (_productName == null) { throw DeviceException.CreateIOException(this, "Unnamed product."); }
+            return _productName;
+        }
+
+        public override string GetSerialNumber()
+        {
+            if (_serialNumber == null) { throw DeviceException.CreateIOException(this, "No serial number."); }
+            return _serialNumber;
+        }
+
+        public override int GetMaxInputReportLength()
+        {
+            RequiresGetInfo();
+            return _maxInput;
+        }
+
+        public override int GetMaxOutputReportLength()
+        {
+            RequiresGetInfo();
+            return _maxOutput;
+        }
+
+        public override int GetMaxFeatureReportLength()
+        {
+            RequiresGetInfo();
+            return _maxFeature;
+        }
+
+        public override byte[] GetRawReportDescriptor()
+        {
+            RequiresGetInfo();
             return (byte[])_reportDescriptor.Clone();
         }
 
-        static bool TryParseReportDescriptor(IntPtr device, out ReportDescriptors.Parser.ReportDescriptorParser parser, out byte[] reportDescriptor)
+        bool TryParseReportDescriptor(out Reports.ReportDescriptor parser, out byte[] reportDescriptor)
         {
             parser = null; reportDescriptor = null;
-			string devnode = NativeMethods.udev_device_get_devnode(device);
-            if (null == devnode) { return false; }
-            
-            int handle = NativeMethods.retry(() => NativeMethods.open
-                                        (devnode, NativeMethods.oflag.NONBLOCK));
-            if (handle < 0) { return false; }
+
+            int handle;
+            try { handle = LinuxHidStream.DeviceHandleFromPath(_path, this, NativeMethods.oflag.NONBLOCK); }
+            catch (FileNotFoundException) { throw DeviceException.CreateIOException(this, "Failed to read report descriptor."); }
 
             try
             {
@@ -66,8 +171,8 @@ namespace HidSharp.Platform.Linux
                 if (NativeMethods.ioctl(handle, NativeMethods.HIDIOCGRDESC, ref desc) < 0) { return false; }
 
                 Array.Resize(ref desc.value, (int)descsize);
-                parser = new ReportDescriptors.Parser.ReportDescriptorParser();
-                parser.Parse(desc.value); reportDescriptor = desc.value; return true;
+                parser = new Reports.ReportDescriptor(desc.value);
+                reportDescriptor = desc.value; return true;
             }
             finally
             {
@@ -75,67 +180,34 @@ namespace HidSharp.Platform.Linux
             }
         }
 
-        internal unsafe bool GetInfo()
+        void RequiresGetInfo()
         {
-            IntPtr udev = NativeMethods.udev_new();
-            if (IntPtr.Zero != udev)
+            lock (_getInfoLock)
             {
-                try
-                {
-                    IntPtr device = NativeMethods.udev_device_new_from_syspath(udev, _path);
-                    if (device != IntPtr.Zero)
-                    {
-                        try
-                        {
-                            IntPtr parent = NativeMethods.udev_device_get_parent_with_subsystem_devtype(device, "usb", "usb_device");
-                            if (IntPtr.Zero != parent)
-                            {
-                                string manufacturer = NativeMethods.udev_device_get_sysattr_value(parent, "manufacturer") ?? "";
-                                string productName = NativeMethods.udev_device_get_sysattr_value(parent, "product") ?? "";
-                                string serialNumber = NativeMethods.udev_device_get_sysattr_value(parent, "serial") ?? "";
-                                string idVendor = NativeMethods.udev_device_get_sysattr_value(parent, "idVendor");
-                                string idProduct = NativeMethods.udev_device_get_sysattr_value(parent, "idProduct");
-                                string version = NativeMethods.udev_device_get_sysattr_value(parent, "version");
+                if (_reportDescriptor != null) { return; }
 
-                                int vid, pid, verMajor, verMinor;
-                                if (NativeMethods.TryParseHex(idVendor, out vid) &&
-                                    NativeMethods.TryParseHex(idProduct, out pid) &&
-                                    NativeMethods.TryParseVersion(version, out verMajor, out verMinor))
-                                {
-                                    _vid = vid;
-                                    _pid = pid;
-                                    _version = verMajor << 8 | verMinor;
-                                    _manufacturer = manufacturer;
-                                    _productName = productName;
-                                    _serialNumber = serialNumber;
-
-                                    ReportDescriptors.Parser.ReportDescriptorParser parser;
-                                    if (TryParseReportDescriptor(device, out parser, out _reportDescriptor))
-                                    {
-                                        // Follow the Windows convention: No Report ID? Report ID is 0.
-                                        // So, it's always one byte above the parser's result.
-                                        _maxInput = parser.InputReportMaxLength; if (_maxInput > 0) { _maxInput++; }
-                                        _maxOutput = parser.OutputReportMaxLength; if (_maxOutput > 0) { _maxOutput++; }
-                                        _maxFeature = parser.FeatureReportMaxLength; if (_maxFeature > 0) { _maxFeature++; }
-                                        _reportsUseID = parser.ReportsUseID;
-                                        return true;
-                                    }
-                                }
-                            }
-                        }
-                        finally
-                        {
-                            NativeMethods.udev_device_unref(device);
-                        }
-                    }
-                }
-                finally
+                Reports.ReportDescriptor parser; byte[] reportDescriptor;
+                if (!TryParseReportDescriptor(out parser, out reportDescriptor))
                 {
-                    NativeMethods.udev_unref(udev);
+                    throw DeviceException.CreateIOException(this, "Failed to read report descriptor.");
                 }
+
+                _maxInput = parser.MaxInputReportLength;
+                _maxOutput = parser.MaxOutputReportLength;
+                _maxFeature = parser.MaxFeatureReportLength;
+                _reportsUseID = parser.ReportsUseID;
+                _reportDescriptor = reportDescriptor;
             }
+        }
 
-            return false;
+        public override string GetFileSystemName()
+        {
+            return _fileSystemName;
+        }
+
+        public override bool HasImplementationDetail(Guid detail)
+        {
+            return base.HasImplementationDetail(detail) || detail == ImplementationDetail.Linux || detail == ImplementationDetail.HidrawApi;
         }
 
         public override string DevicePath
@@ -143,29 +215,9 @@ namespace HidSharp.Platform.Linux
             get { return _path; }
         }
 
-        public override int MaxInputReportLength
+        public override int VendorID
         {
-            get { return _maxInput; }
-        }
-
-        public override int MaxOutputReportLength
-        {
-            get { return _maxOutput; }
-        }
-
-        public override int MaxFeatureReportLength
-        {
-            get { return _maxFeature; }
-        }
-
-        internal bool ReportsUseID
-        {
-            get { return _reportsUseID; }
-        }
-
-        public override string Manufacturer
-        {
-            get { return _manufacturer; }
+            get { return _vid; }
         }
 
         public override int ProductID
@@ -173,24 +225,14 @@ namespace HidSharp.Platform.Linux
             get { return _pid; }
         }
 
-        public override string ProductName
-        {
-            get { return _productName; }
-        }
-
-        public override int ProductVersion
+        public override int ReleaseNumberBcd
         {
             get { return _version; }
         }
 
-        public override string SerialNumber
+        internal bool ReportsUseID
         {
-            get { return _serialNumber; }
-        }
-
-        public override int VendorID
-        {
-            get { return _vid; }
+            get { return _reportsUseID; }
         }
     }
 }

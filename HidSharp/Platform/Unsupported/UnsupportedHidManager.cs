@@ -1,38 +1,49 @@
 ﻿#region License
 /* Copyright 2012 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
-   Permission to use, copy, modify, and/or distribute this software for any
-   purpose with or without fee is hereby granted, provided that the above
-   copyright notice and this permission notice appear in all copies.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-   THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-   WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-   MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-   ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-   WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-   ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+      http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License. */
 #endregion
 
 using System;
 
 namespace HidSharp.Platform.Unsupported
 {
-    class UnsupportedHidManager : HidManager
+    sealed class UnsupportedHidManager : HidManager
     {
-        protected override object[] Refresh()
+        protected override object[] GetHidDeviceKeys()
         {
             return new object[0];
         }
 
-        protected override bool TryCreateDevice(object key, out HidDevice device, out object creationState)
+        protected override object[] GetSerialDeviceKeys()
+        {
+            return new object[0];
+        }
+
+        protected override bool TryCreateHidDevice(object key, out Device device)
         {
             throw new NotImplementedException();
         }
 
-        protected override void CompleteDevice(object key, HidDevice device, object creationState)
+        protected override bool TryCreateSerialDevice(object key, out Device device)
         {
             throw new NotImplementedException();
+        }
+
+        public override string FriendlyName
+        {
+            get { return "Platform Not Supported"; }
         }
 
         public override bool IsSupported

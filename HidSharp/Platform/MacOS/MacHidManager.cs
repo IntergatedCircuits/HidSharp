@@ -1,17 +1,18 @@
 ﻿#region License
-/* Copyright 2012 James F. Bellinger <http://www.zer7.com/software/hidsharp>
+/* Copyright 2012, 2015, 2018 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
-   Permission to use, copy, modify, and/or distribute this software for any
-   purpose with or without fee is hereby granted, provided that the above
-   copyright notice and this permission notice appear in all copies.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-   THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-   WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-   MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-   ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-   WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-   ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+      http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License. */
 #endregion
 
 using System;
@@ -20,13 +21,57 @@ using System.Linq;
 
 namespace HidSharp.Platform.MacOS
 {
-    class MacHidManager : HidManager
+    sealed class MacHidManager : HidManager
     {
-        protected override object[] Refresh()
+        protected override SystemEvents.EventManager CreateEventManager()
+        {
+            return new SystemEvents.MacOSEventManager();
+        }
+
+        protected override void Run(Action readyCallback)
+        {
+            using (var manager = NativeMethods.IOHIDManagerCreate(IntPtr.Zero).ToCFType())
+            {
+                RunAssert(manager.IsSet, "HidSharp IOHIDManagerCreate failed.");
+
+                using (var matching = NativeMethods.IOServiceMatching("IOHIDDevice").ToCFType())
+                {
+                    RunAssert(matching.IsSet, "HidSharp IOServiceMatching failed.");
+
+                    var devicesChangedCallback = new NativeMethods.IOHIDDeviceCallback(DevicesChangedCallback);
+                    NativeMethods.IOHIDManagerSetDeviceMatching(manager.Handle, matching.Handle);
+                    NativeMethods.IOHIDManagerRegisterDeviceMatchingCallback(manager.Handle, devicesChangedCallback, IntPtr.Zero);
+                    NativeMethods.IOHIDManagerRegisterDeviceRemovalCallback(manager.Handle, devicesChangedCallback, IntPtr.Zero);
+
+                    var runLoop = NativeMethods.CFRunLoopGetCurrent();
+                    NativeMethods.CFRetain(runLoop);
+                    NativeMethods.IOHIDManagerScheduleWithRunLoop(manager, runLoop, NativeMethods.kCFRunLoopDefaultMode);
+                    try
+                    {
+                        readyCallback();
+                        NativeMethods.CFRunLoopRun();
+                    }
+                    finally
+                    {
+                        NativeMethods.IOHIDManagerUnscheduleFromRunLoop(manager, runLoop, NativeMethods.kCFRunLoopDefaultMode);
+                        NativeMethods.CFRelease(runLoop);
+                    }
+
+                    GC.KeepAlive(devicesChangedCallback);
+                }
+            }
+        }
+
+        static void DevicesChangedCallback(IntPtr context, NativeMethods.IOReturn result, IntPtr sender, IntPtr device)
+        {
+            DeviceList.Local.RaiseChanged();
+        }
+
+        object[] GetDeviceKeys(string kind)
         {
             var paths = new List<NativeMethods.io_string_t>();
 
-            var matching = NativeMethods.IOServiceMatching("IOHIDDevice").ToCFType(); // Consumed by IOServiceGetMatchingServices, so DON'T Dispose().
+            var matching = NativeMethods.IOServiceMatching(kind).ToCFType(); // Consumed by IOServiceGetMatchingServices, so DON'T Dispose().
             if (matching.IsSet)
             {
                 int iteratorObj;
@@ -54,38 +99,52 @@ namespace HidSharp.Platform.MacOS
             return paths.Cast<object>().ToArray();
         }
 
-        protected override bool TryCreateDevice(object key, out HidDevice device, out object creationState)
+        protected override object[] GetHidDeviceKeys()
         {
-            creationState = null;
-            var path = (NativeMethods.io_string_t)key; var hidDevice = new MacHidDevice(path);
-            using (var handle = NativeMethods.IORegistryEntryFromPath(0, ref path).ToIOObject())
-            {
-                if (!handle.IsSet || !hidDevice.GetInfo(handle)) { device = null; return false; }
-                device = hidDevice; return true;
-            }
+            return GetDeviceKeys("IOHIDDevice");
         }
 
-        protected override void CompleteDevice(object key, HidDevice device, object creationState)
+        protected override object[] GetSerialDeviceKeys()
         {
-            
+            return GetDeviceKeys("IOSerialBSDClient");
+        }
+
+        protected override bool TryCreateHidDevice(object key, out Device device)
+        {
+            device = MacHidDevice.TryCreate((NativeMethods.io_string_t)key);
+            return device != null;
+        }
+
+        protected override bool TryCreateSerialDevice(object key, out Device device)
+        {
+            device = MacSerialDevice.TryCreate((NativeMethods.io_string_t)key);
+            return device != null;
+        }
+
+        public override string FriendlyName
+        {
+            get { return "Mac OS HID"; }
         }
 
         public override bool IsSupported
         {
             get
             {
-                try
+                if (Environment.OSVersion.Platform == PlatformID.Unix)
                 {
-                    IntPtr major; NativeMethods.OSErr majorErr = NativeMethods.Gestalt(NativeMethods.OSType.gestaltSystemVersionMajor, out major);
-                    IntPtr minor; NativeMethods.OSErr minorErr = NativeMethods.Gestalt(NativeMethods.OSType.gestaltSystemVersionMinor, out minor);
-                    if (majorErr == NativeMethods.OSErr.noErr && minorErr == NativeMethods.OSErr.noErr)
+                    try
                     {
-                        return (long)major >= 10 || ((long)major == 10 && (long)minor >= 5);
+                        IntPtr major; NativeMethods.OSErr majorErr = NativeMethods.Gestalt(NativeMethods.OSType.gestaltSystemVersionMajor, out major);
+                        IntPtr minor; NativeMethods.OSErr minorErr = NativeMethods.Gestalt(NativeMethods.OSType.gestaltSystemVersionMinor, out minor);
+                        if (majorErr == NativeMethods.OSErr.noErr && minorErr == NativeMethods.OSErr.noErr)
+                        {
+                            return (long)major >= 10 || ((long)major == 10 && (long)minor >= 6);
+                        }
                     }
-                }
-                catch
-                {
+                    catch
+                    {
 
+                    }
                 }
 
                 return false;

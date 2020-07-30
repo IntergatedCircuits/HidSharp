@@ -1,31 +1,34 @@
 ﻿#region License
-/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
+/* Copyright 2012-2013, 2017-2019 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
-   Permission to use, copy, modify, and/or distribute this software for any
-   purpose with or without fee is hereby granted, provided that the above
-   copyright notice and this permission notice appear in all copies.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-   THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-   WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-   MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-   ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-   WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-   ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+      http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License. */
 #endregion
 
 using System;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace HidSharp.Platform.Linux
 {
     static class NativeMethods
     {
 		const string libc = "libc";
-		const string libudev = "libudev.so.0";
 
 		public enum error
 		{
@@ -50,6 +53,7 @@ namespace HidSharp.Platform.Linux
 			RDWR = 0x002,
 			CREAT = 0x040,
 			EXCL = 0x080,
+            NOCTTY = 0x100,
 			TRUNC = 0x200,
 			APPEND = 0x400,
 			NONBLOCK = 0x800
@@ -91,35 +95,52 @@ namespace HidSharp.Platform.Linux
 			}
 		}
 
-		public static bool uname(out string sysname, out Version release, out string machine)
+		public static bool uname(out string sysname, out Version release)
 		{
 			string releaseStr; release = null;
-			if (!uname(out sysname, out releaseStr, out machine)) { return false; }
+			if (!uname(out sysname, out releaseStr)) { return false; }
             releaseStr = new string(releaseStr.Trim().TakeWhile(ch => (ch >= '0' && ch <= '9') || ch == '.').ToArray());
 			release = new Version(releaseStr);
 			return true;
 		}
-		
-        public static bool uname(out string sysname, out string release, out string machine)
-        {
-            sysname = null; release = null; machine = null;
 
+        public static bool uname(out string sysname, out string release)
+        {
             string syscallPath = "Mono.Unix.Native.Syscall, Mono.Posix, PublicKeyToken=0738eb9f132ed756";
             var syscall = Type.GetType(syscallPath);
-            if (syscall == null) { return false; }
+            if (syscall != null)
+            {
+                var unameArgs = new object[1];
+                int unameRet = (int)syscall.InvokeMember("uname",
+                                                         BindingFlags.InvokeMethod | BindingFlags.Static | BindingFlags.Public, null, null, unameArgs,
+                                                         CultureInfo.InvariantCulture);
+                if (unameRet >= 0)
+                {
+                    var uname = unameArgs[0];
+                    Func<string, string> getMember = s => (string)uname.GetType().InvokeMember(s,
+                                                                                               BindingFlags.GetField, null, uname, new object[0],
+                                                                                               CultureInfo.InvariantCulture);
+                    sysname = getMember("sysname"); release = getMember("release");
+                    return true;
+                }
+            }
 
-            var unameArgs = new object[1];
-            int unameRet = (int)syscall.InvokeMember("uname",
-                                                     BindingFlags.InvokeMethod | BindingFlags.Static, null, null, unameArgs,
-                                                     CultureInfo.InvariantCulture);
-            if (unameRet < 0) { return false; }
+            try
+            {
+                if (File.Exists("/proc/sys/kernel/ostype") && File.Exists("/proc/sys/kernel/osrelease"))
+                {
+                    sysname = File.ReadAllText("/proc/sys/kernel/ostype").TrimEnd('\n');
+                    release = File.ReadAllText("/proc/sys/kernel/osrelease").TrimEnd('\n');
+                    if (sysname != "" && release != "") { return true; }
+                }
+            }
+            catch
+            {
 
-            var uname = unameArgs[0];
-			Func<string, string> getMember = s => (string)uname.GetType().InvokeMember(s,
-                                                                                       BindingFlags.GetField, null, uname, new object[0],
-                                                                                       CultureInfo.InvariantCulture);
-            sysname = getMember("sysname"); release = getMember("release"); machine = getMember("machine");
-            return true;
+            }
+
+            sysname = null; release = null;
+            return false;
         }
 		
 		[DllImport(libc, SetLastError = true)]
@@ -131,72 +152,16 @@ namespace HidSharp.Platform.Linux
 		public static extern int close(int filedes);
 
 		[DllImport(libc, SetLastError = true)]
-		public static extern IntPtr read(int filedes, IntPtr buffer, IntPtr size);
+		public static extern IntPtr read(int filedes, IntPtr buffer, UIntPtr size);
 		
 		[DllImport(libc, SetLastError = true)]
-		public static extern IntPtr write(int filedes, IntPtr buffer, IntPtr size);
+		public static extern IntPtr write(int filedes, IntPtr buffer, UIntPtr size);
 
 		[DllImport(libc, SetLastError = true)]
 		public static extern int poll(pollfd[] fds, IntPtr nfds, int timeout);
-		
-        [DllImport(libudev)]
-        public static extern IntPtr udev_new();
 
-        [DllImport(libudev)]
-        public static extern IntPtr udev_ref(IntPtr udev);
-
-        [DllImport(libudev)]
-        public static extern void udev_unref(IntPtr udev);
-
-        [DllImport(libudev)]
-        public static extern IntPtr udev_enumerate_new(IntPtr udev);
-
-        [DllImport(libudev)]
-        public static extern IntPtr udev_enumerate_ref(IntPtr enumerate);
-
-        [DllImport(libudev)]
-        public static extern void udev_enumerate_unref(IntPtr enumerate);
-
-        [DllImport(libudev)]
-        public static extern int udev_enumerate_add_match_subsystem(IntPtr enumerate,
-			[MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(Utf8Marshaler))] string subsystem);
-
-        [DllImport(libudev)]
-        public static extern int udev_enumerate_scan_devices(IntPtr enumerate);
-
-        [DllImport(libudev)]
-        public static extern IntPtr udev_enumerate_get_list_entry(IntPtr enumerate);
-
-        [DllImport(libudev)]
-        public static extern IntPtr udev_list_entry_get_next(IntPtr entry);
-
-        [DllImport(libudev)]
-        [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(Utf8Marshaler))]
-        public static extern string udev_list_entry_get_name(IntPtr entry);
-
-        [DllImport(libudev)]
-        public static extern IntPtr udev_device_new_from_syspath(IntPtr udev,
-            [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(Utf8Marshaler))] string syspath);
-
-        [DllImport(libudev)]
-        public static extern IntPtr udev_device_ref(IntPtr device);
-
-        [DllImport(libudev)]
-        public static extern void udev_device_unref(IntPtr device);
-
-        [DllImport(libudev)]
-        [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(Utf8Marshaler))]
-        public static extern string udev_device_get_devnode(IntPtr device);
-
-        [DllImport(libudev)]
-        public static extern IntPtr udev_device_get_parent_with_subsystem_devtype(IntPtr device,
-            [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(Utf8Marshaler))] string subsystem,
-            [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(Utf8Marshaler))] string devtype);
-
-        [DllImport(libudev)]
-        [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(Utf8Marshaler))]
-        public static extern string udev_device_get_sysattr_value(IntPtr device,
-            [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(Utf8Marshaler))] string sysattr);
+        [DllImport(libc, SetLastError = true)]
+        public static extern int poll(ref pollfd fds, IntPtr nfds, int timeout);
 
         public static bool TryParseHex(string hex, out int result)
         {
@@ -225,15 +190,34 @@ namespace HidSharp.Platform.Linux
         public const int IOC_SIZESHIFT = IOC_TYPESHIFT + IOC_TYPEBITS;
         public const int IOC_DIRSHIFT = IOC_SIZESHIFT + IOC_SIZEBITS;
 
-        public static int IOC(int dir, int type, int nr, int size)
+        public static UIntPtr IOC(int dir, int type, int nr, int size)
         {
-            return dir << IOC_DIRSHIFT | type << IOC_TYPESHIFT | nr << IOC_NRSHIFT | size << IOC_SIZESHIFT;
+            // Make sure to cast this to uint. We do NOT want this casted from int...
+            uint value = (uint)dir << IOC_DIRSHIFT | (uint)type << IOC_TYPESHIFT | (uint)nr << IOC_NRSHIFT | (uint)size << IOC_SIZESHIFT;
+            return (UIntPtr)value;
+        }
+
+        public static UIntPtr IOW(int type, int nr, int size)
+        {
+            return IOC(IOC_WRITE, type, nr, size);
+        }
+
+        public static UIntPtr IOR(int type, int nr, int size)
+        {
+            return IOC(IOC_READ, type, nr, size);
+        }
+
+        public static UIntPtr IOWR(int type, int nr, int size)
+        {
+            return IOC(IOC_WRITE | IOC_READ, type, nr, size);
         }
 
         #region hidraw
         public const int HID_MAX_DESCRIPTOR_SIZE = 4096;
-        public static readonly int HIDIOCGRDESCSIZE = IOC(IOC_READ, (byte)'H', 1, 4);
-        public static readonly int HIDIOCGRDESC = IOC(IOC_READ, (byte)'H', 2, Marshal.SizeOf(typeof(hidraw_report_descriptor)));
+        public static readonly UIntPtr HIDIOCGRDESCSIZE = IOR((byte)'H', 1, 4);
+        public static readonly UIntPtr HIDIOCGRDESC = IOR((byte)'H', 2, Marshal.SizeOf(typeof(hidraw_report_descriptor)));
+        public static UIntPtr HIDIOCSFEATURE(int length) { return IOWR((byte)'H', 6, length); }
+        public static UIntPtr HIDIOCGFEATURE(int length) { return IOWR((byte)'H', 7, length); }
 
         public struct hidraw_report_descriptor
         {
@@ -244,11 +228,117 @@ namespace HidSharp.Platform.Linux
         }
 
         [DllImport(libc, SetLastError = true)]
-        public static extern int ioctl(int filedes, int command, out uint value);
+        public static extern int ioctl(int filedes, UIntPtr command, out uint value);
 
         [DllImport(libc, SetLastError = true)]
-        public static extern int ioctl(int filedes, int command, ref hidraw_report_descriptor value);
+        public static extern int ioctl(int filedes, UIntPtr command, ref hidraw_report_descriptor value);
+
+        [DllImport(libc, SetLastError = true)]
+        public static extern int ioctl(int filedes, UIntPtr command, IntPtr value);
+
+        [DllImport(libc, SetLastError = true)]
+        public static extern int ioctl(int filedes, UIntPtr command, ref termios value);
+
+        [DllImport(libc, SetLastError = true)]
+        public static extern int ioctl(int filedes, UIntPtr command);
         #endregion
+        #endregion
+
+        #region termios
+        public static readonly UIntPtr TIOCEXCL = (UIntPtr)0x540c;
+        public static readonly UIntPtr TIOCNXCL = (UIntPtr)0x540d;
+
+        public static readonly UIntPtr TCGETS2 = IOR((byte)'T', 0x2a, Marshal.SizeOf(typeof(termios)));
+        public static readonly UIntPtr TCSETS2 = IOW((byte)'T', 0x2b, Marshal.SizeOf(typeof(termios)));
+        public static readonly UIntPtr TCSETSW2 = IOW((byte)'T', 0x2c, Marshal.SizeOf(typeof(termios)));
+        public static readonly UIntPtr TCSETSF2 = IOW((byte)'T', 0x2d, Marshal.SizeOf(typeof(termios)));
+
+        // See /usr/include/asm-generic/termbits.h
+        public const int VTIME = 5;
+        public const int VMIN = 6;
+
+        public const uint IGNBRK = 0x0001;
+        public const uint BRKINT = 0x0002;
+        public const uint PARMRK = 0x0008;
+        public const uint ISTRIP = 0x0020;
+        public const uint INLCR = 0x0040;
+        public const uint IGNCR = 0x0080;
+        public const uint ICRNL = 0x0100;
+        public const uint IXON = 0x0400;
+
+        public const uint OPOST = 0x0001;
+
+        public const uint CBAUD = 0x100f;
+        public const uint BOTHER = 0x1000;
+
+        public const uint CSIZE = 0x0030;
+        public const uint CS7 = 0x0020;
+        public const uint CS8 = 0x0030;
+        public const uint CSTOPB = 0x0040;
+        public const uint CREAD = 0x0080;
+        public const uint PARENB = 0x0100;
+        public const uint PARODD = 0x0200;
+        public const uint CLOCAL = 0x0800;
+        public const uint CRTSCTS = 0x80000000u;
+
+        public const uint ECHO = 0x0008;
+        public const uint ECHONL = 0x0040;
+        public const uint ICANON = 0x0002;
+        public const uint ISIG = 0x0001;
+        public const uint IEXTEN = 0x8000;
+
+        public const int TCIFLUSH = 0;
+
+        public const int TCSANOW = 0;
+
+        public unsafe struct termios // termios2
+        {
+            public uint c_iflag;
+            public uint c_oflag;
+            public uint c_cflag;
+            public uint c_lflag;
+            public byte c_line;
+            public fixed byte c_cc[19];
+            public uint c_ispeed;
+            public uint c_ospeed;
+        }
+
+        public static void cfmakeraw(ref termios termios)
+        {
+            // See https://linux.die.net/man/3/cfmakeraw "Raw mode" heading.
+            termios.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+            termios.c_oflag &= ~OPOST;
+            termios.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+            termios.c_cflag &= ~(CSIZE | PARENB);
+            termios.c_cflag |= CS8;
+        }
+
+        public static int cfsetspeed(ref termios termios, uint speed)
+        {
+            termios.c_cflag &= ~CBAUD;
+            termios.c_cflag |= BOTHER;
+            termios.c_ispeed = speed;
+            termios.c_ospeed = speed;
+            return 0;
+        }
+
+        public static int tcgetattr(int filedes, out termios termios)
+        {
+            termios = new termios();
+            return ioctl(filedes, TCGETS2, ref termios);
+        }
+
+        public static int tcsetattr(int filedes, int actions, ref termios termios)
+        {
+            Debug.Assert(actions == TCSANOW);
+            return ioctl(filedes, TCSETS2, ref termios);
+        }
+
+        [DllImport(libc, SetLastError = true)]
+        public static extern int tcdrain(int filedes);
+
+        [DllImport(libc, SetLastError = true)]
+        public static extern int tcflush(int filedes, int action);
         #endregion
     }
 }

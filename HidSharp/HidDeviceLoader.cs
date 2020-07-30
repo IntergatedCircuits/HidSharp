@@ -1,96 +1,66 @@
 ﻿#region License
 /* Copyright 2010, 2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
-   Permission to use, copy, modify, and/or distribute this software for any
-   purpose with or without fee is hereby granted, provided that the above
-   copyright notice and this permission notice appear in all copies.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-   THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-   WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-   MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-   ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-   WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-   ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+      http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License. */
 #endregion
 
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace HidSharp
 {
-    /// <summary>
-    /// Detects USB HID class devices connected to the system.
-    /// </summary>
+    /// <exclude />
     [ComVisible(true), Guid("CD7CBD7D-7204-473c-AA2A-2B9622CFC6CC")]
+    [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
     public class HidDeviceLoader
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="HidDeviceLoader"/> class.
-        /// </summary>
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
         public HidDeviceLoader()
         {
 
         }
 
-        /// <summary>
-        /// Gets a list of connected USB devices.
-        /// This overload is meant for Visual Basic 6 and COM clients.
-        /// </summary>
-        /// <returns>The device list.</returns>
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
         public IEnumerable GetDevicesVB()
         {
-            return GetDevices();
+            return DeviceList.Local.GetHidDevices();
         }
 
-        /// <summary>
-        /// Gets a list of connected USB devices.
-        /// </summary>
-        /// <returns>The device list.</returns>
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
         public IEnumerable<HidDevice> GetDevices()
         {
-            return Platform.HidSelector.Instance.GetDevices();
+            return DeviceList.Local.GetHidDevices();
         }
 
-        /// <summary>
-        /// Gets a list of connected USB devices, filtered by some criteria.
-        /// </summary>
-        /// <param name="vendorID">The vendor ID, or null to not filter by vendor ID.</param>
-        /// <param name="productID">The product ID, or null to not filter by product ID.</param>
-        /// <param name="productVersion">The product version, or null to not filter by product version.</param>
-        /// <param name="serialNumber">The serial number, or null to not filter by serial number.</param>
-        /// <returns>The filtered device list.</returns>
-        public IEnumerable<HidDevice> GetDevices
-            (int? vendorID = null, int? productID = null, int? productVersion = null, string serialNumber = null)
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
+        public IEnumerable<HidDevice> GetDevices(int? vendorID = null, int? productID = null, int? productVersion = null, string serialNumber = null)
         {
-            int vid = vendorID ?? -1, pid = productID ?? -1, ver = productVersion ?? -1;
-            foreach (HidDevice hid in GetDevices())
-            {
-                if ((hid.VendorID == vendorID || vid < 0) &&
-                    (hid.ProductID == productID || pid < 0) &&
-                    (hid.ProductVersion == productVersion || ver < 0) &&
-                    (hid.SerialNumber == serialNumber || string.IsNullOrEmpty(serialNumber)))
-                {
-                    yield return hid;
-                }
-            }
+            return DeviceList.Local.GetHidDevices(vendorID, productID, productVersion, serialNumber);
         }
 
-        /// <summary>
-        /// Gets the first connected USB device that matches specified criteria.
-        /// </summary>
-        /// <param name="vendorID">The vendor ID, or null to not filter by vendor ID.</param>
-        /// <param name="productID">The product ID, or null to not filter by product ID.</param>
-        /// <param name="productVersion">The product version, or null to not filter by product version.</param>
-        /// <param name="serialNumber">The serial number, or null to not filter by serial number.</param>
-        /// <returns>The device, or null if none was found.</returns>
-        public HidDevice GetDeviceOrDefault
-            (int? vendorID = null, int? productID = null, int? productVersion = null, string serialNumber = null)
+        /// <exclude />
+        [Obsolete, EditorBrowsable(EditorBrowsableState.Never)]
+        public HidDevice GetDeviceOrDefault(int? vendorID = null, int? productID = null, int? productVersion = null, string serialNumber = null)
         {
-            return GetDevices(vendorID, productID, productVersion, serialNumber).FirstOrDefault();
+            return DeviceList.Local.GetHidDeviceOrNull(vendorID, productID, productVersion, serialNumber);
         }
     }
 }

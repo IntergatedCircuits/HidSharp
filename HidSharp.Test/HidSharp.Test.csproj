@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>HidSharp.Test</RootNamespace>
     <AssemblyName>HidSharp.Test</AssemblyName>
-    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <FileUpgradeFlags>
     </FileUpgradeFlags>
@@ -35,7 +35,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x86</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -45,10 +45,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\HidSharp.DeviceHelpers\HidSharp.DeviceHelpers.csproj">
-      <Project>{394523C0-98D0-4273-8C96-7E38FC7A97DC}</Project>
-      <Name>HidSharp.DeviceHelpers</Name>
-    </ProjectReference>
     <ProjectReference Include="..\HidSharp\HidSharp.csproj">
       <Project>{0DB86674-2A7B-4BDC-93C1-3F7DC771426C}</Project>
       <Name>HidSharp</Name>
