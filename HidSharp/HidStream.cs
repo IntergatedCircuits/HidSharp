@@ -24,7 +24,7 @@ using System.Threading;
 
 namespace HidSharp
 {
-    [ClassInterface(ClassInterfaceType.AutoDual), Guid("0C263D05-0D58-4c6c-AEA7-EB9E0C5338A2")]
+    [ComVisible(true), Guid("0C263D05-0D58-4c6c-AEA7-EB9E0C5338A2")]
     public abstract class HidStream : Stream
     {
 		int _opened, _closed;
@@ -43,21 +43,21 @@ namespace HidSharp
             WriteTimeout = 3000;
         }
 		
-		internal void CheckNull(byte[] buffer)
+		internal static void CheckNull(byte[] buffer)
 		{
 			if (buffer == null) { throw new ArgumentNullException("buffer"); }
 		}
 		
-        internal void CheckItAll(byte[] buffer, int offset, int count)
+        internal static void CheckItAll(byte[] buffer, int offset, int count)
         {
             CheckNull(buffer);
             if (offset < 0 || offset > buffer.Length) { throw new ArgumentOutOfRangeException("offset"); }
             if (count < 0 || count > buffer.Length - offset) { throw new ArgumentOutOfRangeException("count"); }
         }
 		
-		internal int GetTimeout(int startTime, int timeout)
+		internal static int GetTimeout(int startTime, int timeout)
 		{
-			return Math.Min(timeout, Math.Max(0, Environment.TickCount - startTime));
+			return Math.Min(timeout, Math.Max(0, startTime + timeout - Environment.TickCount));
 		}
 		
         internal int CommonRead(byte[] buffer, int offset, int count, Queue<byte[]> queue)

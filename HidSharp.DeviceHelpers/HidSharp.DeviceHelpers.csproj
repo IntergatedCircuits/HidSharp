@@ -3,20 +3,15 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProductVersion>9.0.30729</ProductVersion>
+    <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{5E83ACC1-19FA-4996-BBAE-BF7DB4604812}</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <ProjectGuid>{394523C0-98D0-4273-8C96-7E38FC7A97DC}</ProjectGuid>
+    <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>HidSharp.Test</RootNamespace>
-    <AssemblyName>HidSharp.Test</AssemblyName>
+    <RootNamespace>HidSharp.DeviceHelpers</RootNamespace>
+    <AssemblyName>HidSharp.DeviceHelpers</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <FileUpgradeFlags>
-    </FileUpgradeFlags>
-    <UpgradeBackupLocation>
-    </UpgradeBackupLocation>
-    <OldToolsVersion>3.5</OldToolsVersion>
     <TargetFrameworkProfile>Client</TargetFrameworkProfile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -40,18 +35,10 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Program.cs" />
+    <Compile Include="DymoScale.cs" />
+    <Compile Include="DymoScaleStatus.cs" />
+    <Compile Include="DymoScaleUnit.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\HidSharp.DeviceHelpers\HidSharp.DeviceHelpers.csproj">
-      <Project>{394523C0-98D0-4273-8C96-7E38FC7A97DC}</Project>
-      <Name>HidSharp.DeviceHelpers</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\HidSharp\HidSharp.csproj">
-      <Project>{0DB86674-2A7B-4BDC-93C1-3F7DC771426C}</Project>
-      <Name>HidSharp</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

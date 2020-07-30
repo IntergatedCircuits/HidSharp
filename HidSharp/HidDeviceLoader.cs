@@ -22,7 +22,7 @@ using System.Runtime.InteropServices;
 
 namespace HidSharp
 {
-    [ClassInterface(ClassInterfaceType.AutoDual), Guid("CD7CBD7D-7204-473c-AA2A-2B9622CFC6CC")]
+    [ComVisible(true), Guid("CD7CBD7D-7204-473c-AA2A-2B9622CFC6CC")]
     public class HidDeviceLoader
     {
         public HidDeviceLoader()

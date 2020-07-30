@@ -28,37 +28,37 @@ namespace HidSharp.Platform.Linux
         {
             var paths = new List<string>();
 
-	        IntPtr udev = LinuxApi.udev_new();
+	        IntPtr udev = NativeMethods.udev_new();
             if (IntPtr.Zero != udev)
             {
                 try
                 {
-                    IntPtr enumerate = LinuxApi.udev_enumerate_new(udev);
+                    IntPtr enumerate = NativeMethods.udev_enumerate_new(udev);
                     if (IntPtr.Zero != enumerate)
                     {
                         try
                         {
-                            if (0 == LinuxApi.udev_enumerate_add_match_subsystem(enumerate, "hidraw") &&
-                                0 == LinuxApi.udev_enumerate_scan_devices(enumerate))
+                            if (0 == NativeMethods.udev_enumerate_add_match_subsystem(enumerate, "hidraw") &&
+                                0 == NativeMethods.udev_enumerate_scan_devices(enumerate))
                             {
                                 IntPtr entry;
-                                for (entry = LinuxApi.udev_enumerate_get_list_entry(enumerate); entry != IntPtr.Zero;
-                                     entry = LinuxApi.udev_list_entry_get_next(entry))
+                                for (entry = NativeMethods.udev_enumerate_get_list_entry(enumerate); entry != IntPtr.Zero;
+                                     entry = NativeMethods.udev_list_entry_get_next(entry))
                                 {
-                                    string syspath = LinuxApi.udev_list_entry_get_name(entry);
+                                    string syspath = NativeMethods.udev_list_entry_get_name(entry);
                                     if (syspath != null) { paths.Add(syspath); }
                                 }
                             }
                         }
                         finally
                         {
-                            LinuxApi.udev_enumerate_unref(enumerate);
+                            NativeMethods.udev_enumerate_unref(enumerate);
                         }
                     }
                 }
                 finally
                 {
-                    LinuxApi.udev_unref(udev);
+                    NativeMethods.udev_unref(udev);
                 }
             }
 
@@ -79,12 +79,12 @@ namespace HidSharp.Platform.Linux
                 try
                 {
 					string sysname; Version release; string machine;
-					if (LinuxApi.uname(out sysname, out release, out machine))
+					if (NativeMethods.uname(out sysname, out release, out machine))
 					{
-						IntPtr udev = LinuxApi.udev_new();
+						IntPtr udev = NativeMethods.udev_new();
 						if (IntPtr.Zero != udev)
 						{
-							LinuxApi.udev_unref(udev);
+							NativeMethods.udev_unref(udev);
 							return sysname == "Linux" && release >= new Version(2, 6, 36);
 						}
 					}

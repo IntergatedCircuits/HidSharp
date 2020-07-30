@@ -44,15 +44,15 @@ namespace HidSharp.Platform.MacOS
 			_writeThread.IsBackground = true;
         }
 		
-		internal void Init(MacApi.io_string_t path, MacHidDevice device)
+		internal void Init(NativeMethods.io_string_t path, MacHidDevice device)
 		{
             IntPtr handle;
-            using (var service = MacApi.IORegistryEntryFromPath(0, ref path).ToIOObject())
+            using (var service = NativeMethods.IORegistryEntryFromPath(0, ref path).ToIOObject())
             {
-                handle = MacApi.IOHIDDeviceCreate(IntPtr.Zero, service);
+                handle = NativeMethods.IOHIDDeviceCreate(IntPtr.Zero, service);
                 if (handle == IntPtr.Zero) { throw new IOException("HID device not found."); }
 
-                if (MacApi.IOReturn.Success != MacApi.IOHIDDeviceOpen(handle)) { MacApi.CFRelease(handle); throw new IOException("Unable to open HID device."); }
+                if (NativeMethods.IOReturn.Success != NativeMethods.IOHIDDeviceOpen(handle)) { NativeMethods.CFRelease(handle); throw new IOException("Unable to open HID device."); }
             }
             _device = device;
             _handle = handle;
@@ -70,7 +70,7 @@ namespace HidSharp.Platform.MacOS
             _shutdown = true;
             try { lock (_outputQueue) { Monitor.PulseAll(_outputQueue); } } catch { }
 
-            MacApi.CFRunLoopStop(_readRunLoop);
+            NativeMethods.CFRunLoopStop(_readRunLoop);
             try { _readThread.Join(); } catch { }
             try { _writeThread.Join(); } catch { }
 			
@@ -79,7 +79,7 @@ namespace HidSharp.Platform.MacOS
 
 		internal override void HandleFree()
 		{
-			MacApi.CFRelease(_handle); _handle = IntPtr.Zero;
+			NativeMethods.CFRelease(_handle); _handle = IntPtr.Zero;
 		}
 		
         static void ReadThreadEnqueue(Queue<byte[]> queue, byte[] report)
@@ -90,16 +90,16 @@ namespace HidSharp.Platform.MacOS
             }
         }
 
-        void ReadThreadCallback(IntPtr context, MacApi.IOReturn result, IntPtr sender,
-                                	   MacApi.IOHIDReportType type,
+        void ReadThreadCallback(IntPtr context, NativeMethods.IOReturn result, IntPtr sender,
+                                	   NativeMethods.IOHIDReportType type,
 		                               uint reportID, IntPtr report, IntPtr reportLength)
         {
             byte[] reportBytes = new byte[(int)reportLength];
             Marshal.Copy(report, reportBytes, 0, reportBytes.Length);
 
-            if (result == MacApi.IOReturn.Success && reportLength != IntPtr.Zero)
+            if (result == NativeMethods.IOReturn.Success && reportLength != IntPtr.Zero)
             {
-                if (type == MacApi.IOHIDReportType.Input)
+                if (type == NativeMethods.IOHIDReportType.Input)
                 {
                     ReadThreadEnqueue(_inputQueue, reportBytes);
                 }
@@ -109,21 +109,21 @@ namespace HidSharp.Platform.MacOS
         unsafe void ReadThread()
         {			
 			if (!HandleAcquire()) { return; }
-			_readRunLoop = MacApi.CFRunLoopGetCurrent();
+			_readRunLoop = NativeMethods.CFRunLoopGetCurrent();
 			
             try
             {
-				var callback = new MacApi.IOHIDReportCallback(ReadThreadCallback);
+				var callback = new NativeMethods.IOHIDReportCallback(ReadThreadCallback);
 
                 byte[] inputReport = new byte[_device.MaxInputReportLength];
                 fixed (byte* inputReportBytes = inputReport)
                 {
-                    MacApi.IOHIDDeviceRegisterInputReportCallback(_handle,
+                    NativeMethods.IOHIDDeviceRegisterInputReportCallback(_handle,
                                                                   (IntPtr)inputReportBytes, (IntPtr)inputReport.Length,
                                                                   callback, IntPtr.Zero);
-                    MacApi.IOHIDDeviceScheduleWithRunLoop(_handle, _readRunLoop, MacApi.kCFRunLoopDefaultMode);
-                    MacApi.CFRunLoopRun();
-                    MacApi.IOHIDDeviceUnscheduleFromRunLoop(_handle, _readRunLoop, MacApi.kCFRunLoopDefaultMode);
+                    NativeMethods.IOHIDDeviceScheduleWithRunLoop(_handle, _readRunLoop, NativeMethods.kCFRunLoopDefaultMode);
+                    NativeMethods.CFRunLoopRun();
+                    NativeMethods.IOHIDDeviceUnscheduleFromRunLoop(_handle, _readRunLoop, NativeMethods.kCFRunLoopDefaultMode);
                 }
 				
 				GC.KeepAlive(this);
@@ -151,7 +151,7 @@ namespace HidSharp.Platform.MacOS
 	            fixed (byte* bufferBytes = buffer)
 	            {
 	                IntPtr reportLength = (IntPtr)count;
-	                if (MacApi.IOReturn.Success != MacApi.IOHIDDeviceGetReport(_handle, MacApi.IOHIDReportType.Feature,
+	                if (NativeMethods.IOReturn.Success != NativeMethods.IOHIDDeviceGetReport(_handle, NativeMethods.IOHIDReportType.Feature,
 	                                                                           (IntPtr)buffer[offset],
 	                                                                           (IntPtr)(bufferBytes + offset),
 	                                                                           ref reportLength))
@@ -180,7 +180,7 @@ namespace HidSharp.Platform.MacOS
 	                    while (!_shutdown && _outputQueue.Count == 0) { Monitor.Wait(_outputQueue); }
 						if (_shutdown) { break; }
 	
-						MacApi.IOReturn ret;
+						NativeMethods.IOReturn ret;
 	                    CommonOutputReport outputReport = _outputQueue.Peek();
 	                    try
 	                    {
@@ -190,12 +190,12 @@ namespace HidSharp.Platform.MacOS
 	
 	                            try
 	                            {
-	                                ret = MacApi.IOHIDDeviceSetReport(_handle,
-									                                  outputReport.Feature ? MacApi.IOHIDReportType.Feature : MacApi.IOHIDReportType.Output,
+	                                ret = NativeMethods.IOHIDDeviceSetReport(_handle,
+									                                  outputReport.Feature ? NativeMethods.IOHIDReportType.Feature : NativeMethods.IOHIDReportType.Output,
 	                                                                  (IntPtr)outputReport.Bytes[0],
 	                                                                  (IntPtr)outputReportBytes,
 	                                                                  (IntPtr)outputReport.Bytes.Length);
-	                                if (ret == MacApi.IOReturn.Success) { outputReport.DoneOK = true; }
+	                                if (ret == NativeMethods.IOReturn.Success) { outputReport.DoneOK = true; }
 	                            }
 	                            finally
 	                            {
@@ -225,7 +225,7 @@ namespace HidSharp.Platform.MacOS
 
         public override void SetFeature(byte[] buffer, int offset, int count)
         {
-            CommonWrite(buffer, offset, count, _outputQueue, true, _device.MaxOutputReportLength);
+            CommonWrite(buffer, offset, count, _outputQueue, true, _device.MaxFeatureReportLength);
         }
     }
 }

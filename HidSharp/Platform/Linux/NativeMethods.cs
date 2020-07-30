@@ -17,17 +17,18 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
 namespace HidSharp.Platform.Linux
 {
-    static class LinuxApi
+    static class NativeMethods
     {
 		const string libc = "libc";
-		const string libudev = "libudev";
-		
+		const string libudev = "libudev.so.0";
+
 		public enum error
 		{
 			OK = 0,
@@ -73,13 +74,13 @@ namespace HidSharp.Platform.Linux
 			public pollev events;
 			public pollev revents;
 		}
-		
+
 		public static int retry(Func<int> sysfunc)
 		{
 			while (true)
 			{
-				int ret = sysfunc(); if (ret >= 0) { return ret; }
-				if (Marshal.GetLastWin32Error() != (int)error.EINTR) { return ret; }
+                int ret = sysfunc(); var error = (error)Marshal.GetLastWin32Error();
+                if (ret >= 0 || error != error.EINTR) { return ret; }
 			}
 		}
 
@@ -87,8 +88,8 @@ namespace HidSharp.Platform.Linux
 		{
 			while (true)
 			{
-				IntPtr ret = sysfunc(); if ((long)ret >= 0) { return ret; }
-				if (Marshal.GetLastWin32Error() != (int)error.EINTR) { return ret; }
+                IntPtr ret = sysfunc(); var error = (error)Marshal.GetLastWin32Error();
+                if ((long)ret >= 0 || error != error.EINTR) { return ret; }
 			}
 		}
 
@@ -96,7 +97,7 @@ namespace HidSharp.Platform.Linux
 		{
 			string releaseStr; release = null;
 			if (!uname(out sysname, out releaseStr, out machine)) { return false; }
-			if (releaseStr.Contains("-")) { releaseStr = releaseStr.Substring(0, releaseStr.IndexOf('-')); }
+            releaseStr = new string(releaseStr.Trim().TakeWhile(ch => (ch >= '0' && ch <= '9') || ch == '.').ToArray());
 			release = new Version(releaseStr);
 			return true;
 		}
@@ -108,11 +109,15 @@ namespace HidSharp.Platform.Linux
             string syscallPath = "Mono.Unix.Native.Syscall, Mono.Posix, PublicKeyToken=0738eb9f132ed756";
             var syscall = Type.GetType(syscallPath);
             var unameArgs = new object[1];
-            int unameRet = (int)syscall.InvokeMember("uname", BindingFlags.InvokeMethod | BindingFlags.Static, null, null, unameArgs);
+            int unameRet = (int)syscall.InvokeMember("uname",
+                                                     BindingFlags.InvokeMethod | BindingFlags.Static, null, null, unameArgs,
+                                                     CultureInfo.InvariantCulture);
             if (unameRet < 0) { return false; }
 
             var uname = unameArgs[0];
-			Func<string, string> getMember = s => (string)uname.GetType().InvokeMember(s, BindingFlags.GetField, null, uname, new object[0]);
+			Func<string, string> getMember = s => (string)uname.GetType().InvokeMember(s,
+                                                                                       BindingFlags.GetField, null, uname, new object[0],
+                                                                                       CultureInfo.InvariantCulture);
             sysname = getMember("sysname"); release = getMember("release"); machine = getMember("machine");
             return true;
         }
@@ -131,12 +136,6 @@ namespace HidSharp.Platform.Linux
 		[DllImport(libc, SetLastError = true)]
 		public static extern IntPtr write(int filedes, IntPtr buffer, IntPtr size);
 
-		[DllImport(libc, SetLastError = true)]
-		public static extern int fsync(int filedes);
-		
-		[DllImport(libc, SetLastError = true)]
-		public static extern int fdatasync(int filedes);
-		
 		[DllImport(libc, SetLastError = true)]
 		public static extern int poll(pollfd[] fds, IntPtr nfds, int timeout);
 		
@@ -210,5 +209,46 @@ namespace HidSharp.Platform.Linux
             string[] parts = version.Split(new[] { '.' }, 2); if (parts.Length != 2) { return false; }
             return int.TryParse(parts[0], out major) && int.TryParse(parts[1], out minor);
         }
+
+        #region ioctl
+        // TODO: Linux changes these up depending on platform. Eventually we'll handle it.
+        //       For now, x86 and ARM are safe with this definition.
+        public const int IOC_NONE = 0;
+        public const int IOC_WRITE = 1;
+        public const int IOC_READ = 2;
+        public const int IOC_NRBITS = 8;
+        public const int IOC_TYPEBITS = 8;
+        public const int IOC_SIZEBITS = 14;
+        public const int IOC_DIRBITS = 2;
+        public const int IOC_NRSHIFT = 0;
+        public const int IOC_TYPESHIFT = IOC_NRSHIFT + IOC_NRBITS;
+        public const int IOC_SIZESHIFT = IOC_TYPESHIFT + IOC_TYPEBITS;
+        public const int IOC_DIRSHIFT = IOC_SIZESHIFT + IOC_SIZEBITS;
+
+        public static int IOC(int dir, int type, int nr, int size)
+        {
+            return dir << IOC_DIRSHIFT | type << IOC_TYPESHIFT | nr << IOC_NRSHIFT | size << IOC_SIZESHIFT;
+        }
+
+        #region hidraw
+        public const int HID_MAX_DESCRIPTOR_SIZE = 4096;
+        public static readonly int HIDIOCGRDESCSIZE = IOC(IOC_READ, (byte)'H', 1, 4);
+        public static readonly int HIDIOCGRDESC = IOC(IOC_READ, (byte)'H', 2, Marshal.SizeOf(typeof(hidraw_report_descriptor)));
+
+        public struct hidraw_report_descriptor
+        {
+            public uint size;
+
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = HID_MAX_DESCRIPTOR_SIZE)]
+            public byte[] value;
+        }
+
+        [DllImport(libc, SetLastError = true)]
+        public static extern int ioctl(int filedes, int command, out uint value);
+
+        [DllImport(libc, SetLastError = true)]
+        public static extern int ioctl(int filedes, int command, ref hidraw_report_descriptor value);
+        #endregion
+        #endregion
     }
 }

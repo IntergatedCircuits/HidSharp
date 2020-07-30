@@ -73,6 +73,13 @@ namespace HidSharp.ReportDescriptors.Parser
             report = null; return false;
         }
 
+        static int GetMaxLengthOfReports(IEnumerable<Report> reports)
+        {
+            int length = 0;
+            foreach (Report report in reports) { length = Math.Max(length, report.Length); }
+            return length;
+        }
+
         public bool IsGlobalItemSet(GlobalItemTag tag)
         {
             return GlobalItemState.ContainsKey(tag);
@@ -156,32 +163,32 @@ namespace HidSharp.ReportDescriptors.Parser
             if (indexes != null) { ParseMainIndexes(indexes); }
         }
 
-        void AddIndex(List<KeyValuePair<int, uint>> list, int action, uint value)
+        static void AddIndex(List<KeyValuePair<int, uint>> list, int action, uint value)
         {
             list.Add(new KeyValuePair<int, uint>(action, value));
         }
 
-        void UpdateIndexMinimum(ref IndexBase index, uint value)
+        static void UpdateIndexMinimum(ref IndexBase index, uint value)
         {
             if (!(index is IndexRange)) { index = new IndexRange(); }
             ((IndexRange)index).Minimum = value;
         }
 
-        void UpdateIndexMaximum(ref IndexBase index, uint value)
+        static void UpdateIndexMaximum(ref IndexBase index, uint value)
         {
             if (!(index is IndexRange)) { index = new IndexRange(); }
             ((IndexRange)index).Maximum = value;
         }
 
-        void UpdateIndexList(List<uint> values, int delimiter,
-                             ref IndexBase index, uint value)
+        static void UpdateIndexList(List<uint> values, int delimiter,
+                                    ref IndexBase index, uint value)
         {
             values.Add(value);
             UpdateIndexListCommit(values, delimiter, ref index);
         }
 
-        void UpdateIndexListCommit(List<uint> values, int delimiter,
-                                   ref IndexBase index)
+        static void UpdateIndexListCommit(List<uint> values, int delimiter,
+                                          ref IndexBase index)
         {
             if (delimiter != 0 || values.Count == 0) { return; }
             if (!(index is IndexList)) { index = new IndexList(); }
@@ -326,12 +333,7 @@ namespace HidSharp.ReportDescriptors.Parser
 
         public int InputReportMaxLength
         {
-            get
-            {
-                int length = 0;
-                foreach (Report report in InputReports) { length = Math.Max(length, report.Length); }
-                return length;
-            }
+            get { return GetMaxLengthOfReports(InputReports); }
         }
 
         public IEnumerable<Report> OutputReports
@@ -339,9 +341,19 @@ namespace HidSharp.ReportDescriptors.Parser
             get { return FilterReports(ReportType.Output); }
         }
 
+        public int OutputReportMaxLength
+        {
+            get { return GetMaxLengthOfReports(OutputReports); }
+        }
+
         public IEnumerable<Report> FeatureReports
         {
             get { return FilterReports(ReportType.Feature); }
+        }
+
+        public int FeatureReportMaxLength
+        {
+            get { return GetMaxLengthOfReports(FeatureReports); }
         }
 
         public IList<Report> Reports

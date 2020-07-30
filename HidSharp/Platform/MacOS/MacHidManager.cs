@@ -25,24 +25,24 @@ namespace HidSharp.Platform.MacOS
     {
         protected override object[] Refresh()
         {
-            var paths = new List<MacApi.io_string_t>();
+            var paths = new List<NativeMethods.io_string_t>();
 
-            var matching = MacApi.IOServiceMatching("IOHIDDevice").ToCFType(); // Consumed by IOServiceGetMatchingServices, so DON'T Dispose().
+            var matching = NativeMethods.IOServiceMatching("IOHIDDevice").ToCFType(); // Consumed by IOServiceGetMatchingServices, so DON'T Dispose().
             if (matching.IsSet)
             {
                 int iteratorObj;
-                if (MacApi.IOReturn.Success == MacApi.IOServiceGetMatchingServices(0, matching, out iteratorObj))
+                if (NativeMethods.IOReturn.Success == NativeMethods.IOServiceGetMatchingServices(0, matching, out iteratorObj))
                 {
                     using (var iterator = iteratorObj.ToIOObject())
                     {
                         while (true)
                         {
-                            using (var handle = MacApi.IOIteratorNext(iterator).ToIOObject())
+                            using (var handle = NativeMethods.IOIteratorNext(iterator).ToIOObject())
                             {
                                 if (!handle.IsSet) { break; }
 
-                                MacApi.io_string_t path;
-                                if (MacApi.IOReturn.Success == MacApi.IORegistryEntryGetPath(handle, "IOService", out path))
+                                NativeMethods.io_string_t path;
+                                if (NativeMethods.IOReturn.Success == NativeMethods.IORegistryEntryGetPath(handle, "IOService", out path))
                                 {
                                     paths.Add(path);
                                 }
@@ -57,8 +57,8 @@ namespace HidSharp.Platform.MacOS
 
         protected override bool TryCreateDevice(object key, out HidDevice device)
         {
-            var path = (MacApi.io_string_t)key; var hidDevice = new MacHidDevice(path);
-            using (var handle = MacApi.IORegistryEntryFromPath(0, ref path).ToIOObject())
+            var path = (NativeMethods.io_string_t)key; var hidDevice = new MacHidDevice(path);
+            using (var handle = NativeMethods.IORegistryEntryFromPath(0, ref path).ToIOObject())
             {
                 if (!handle.IsSet || !hidDevice.GetInfo(handle)) { device = null; return false; }
                 device = hidDevice; return true;
@@ -70,9 +70,9 @@ namespace HidSharp.Platform.MacOS
             {
                 try
                 {
-                    IntPtr major; MacApi.OSErr majorErr = MacApi.Gestalt(MacApi.OSType.gestaltSystemVersionMajor, out major);
-                    IntPtr minor; MacApi.OSErr minorErr = MacApi.Gestalt(MacApi.OSType.gestaltSystemVersionMinor, out minor);
-                    if (majorErr == MacApi.OSErr.noErr && minorErr == MacApi.OSErr.noErr)
+                    IntPtr major; NativeMethods.OSErr majorErr = NativeMethods.Gestalt(NativeMethods.OSType.gestaltSystemVersionMajor, out major);
+                    IntPtr minor; NativeMethods.OSErr minorErr = NativeMethods.Gestalt(NativeMethods.OSType.gestaltSystemVersionMinor, out minor);
+                    if (majorErr == NativeMethods.OSErr.noErr && minorErr == NativeMethods.OSErr.noErr)
                     {
                         return (long)major >= 10 || ((long)major == 10 && (long)minor >= 5);
                     }

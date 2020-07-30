@@ -15,19 +15,20 @@
 #endregion
 
 using System;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 
 namespace HidSharp
 {
-    [ClassInterface(ClassInterfaceType.AutoDual), Guid("4D8A9A1A-D5CC-414e-8356-5A025EDA098D")]
+    [ComVisible(true), Guid("4D8A9A1A-D5CC-414e-8356-5A025EDA098D")]
     public abstract class HidDevice
     {
         public abstract HidStream Open();
 
         public virtual byte[] GetReportDescriptor()
         {
-            throw new NotSupportedException(); // Windows without libusb can't...
+            throw new NotSupportedException(); // Windows without libusb can't... Linux can. TODO: Offer it where it's available.
         }
 
         public bool TryOpen(out HidStream stream)
@@ -84,7 +85,7 @@ namespace HidSharp
 
         public override string ToString()
         {
-            return string.Format("{0} ({1}VID {2}, PID {3}, version {4})",
+            return string.Format(CultureInfo.InvariantCulture, "{0} ({1}VID {2}, PID {3}, version {4})",
                 Manufacturer.Length > 0 || ProductName.Length > 0 ? Manufacturer.Trim() + " " + ProductName.Trim() : "(unnamed)",
                 SerialNumber.Length > 0 ? "serial " + SerialNumber.Trim() + ", " : "", VendorID, ProductID, ProductVersion);
         }

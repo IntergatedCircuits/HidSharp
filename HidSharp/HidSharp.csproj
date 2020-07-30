@@ -17,6 +17,7 @@
     <UpgradeBackupLocation>
     </UpgradeBackupLocation>
     <OldToolsVersion>3.5</OldToolsVersion>
+    <TargetFrameworkProfile>Client</TargetFrameworkProfile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -44,26 +45,27 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AsyncResult.cs" />
-    <Compile Include="DymoScale.cs" />
     <Compile Include="HidDevice.cs" />
     <Compile Include="HidDeviceLoader.cs" />
     <Compile Include="HidStream.cs" />
     <Compile Include="Platform\HidSelector.cs" />
     <Compile Include="Platform\HidManager.cs" />
-    <Compile Include="Platform\Linux\LinuxApi.cs" />
-    <Compile Include="Platform\Linux\LinuxHidDevice.cs" />
-    <Compile Include="Platform\Linux\LinuxHidManager.cs" />
-    <Compile Include="Platform\Linux\LinuxHidStream.cs" />
-    <Compile Include="Platform\MacOS\MacApi.cs" />
-    <Compile Include="Platform\MacOS\MacHidDevice.cs" />
-    <Compile Include="Platform\MacOS\MacHidManager.cs" />
-    <Compile Include="Platform\MacOS\MacHidStream.cs" />
-    <Compile Include="Platform\Unsupported\UnsupportedHidManager.cs" />
     <Compile Include="Platform\Utf8Marshaler.cs" />
-    <Compile Include="Platform\Windows\WinApi.cs" />
+    <Compile Include="Platform\Windows\NativeMethods.cs" />
     <Compile Include="Platform\Windows\WinHidDevice.cs" />
     <Compile Include="Platform\Windows\WinHidManager.cs" />
     <Compile Include="Platform\Windows\WinHidStream.cs" />
+    <Compile Include="Platform\Linux\NativeMethods.cs" />
+    <Compile Include="Platform\Linux\LinuxHidDevice.cs" />
+    <Compile Include="Platform\Linux\LinuxHidManager.cs" />
+    <Compile Include="Platform\Linux\LinuxHidStream.cs" />
+    <Compile Include="Platform\MacOS\NativeMethods.cs" />
+    <Compile Include="Platform\MacOS\MacHidDevice.cs" />
+    <Compile Include="Platform\MacOS\MacHidManager.cs" />
+    <Compile Include="Platform\MacOS\MacHidStream.cs" />
+    <Compile Include="Platform\Libusb\NativeMethods.cs" />
+    <Compile Include="Platform\Libusb\LibusbHidManager.cs" />
+    <Compile Include="Platform\Unsupported\UnsupportedHidManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ReportDescriptors\CollectionType.cs" />
     <Compile Include="ReportDescriptors\DataMainItemFlags.cs" />
@@ -90,8 +92,6 @@
     <Compile Include="ReportDescriptors\Units\TimeUnit.cs" />
     <Compile Include="ReportDescriptors\Units\Unit.cs" />
     <Compile Include="ReportDescriptors\Units\UnitSystem.cs" />
-    <Compile Include="Platform\Libusb\LibusbApi.cs" />
-    <Compile Include="Platform\Libusb\LibusbHidManager.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

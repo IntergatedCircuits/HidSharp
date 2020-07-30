@@ -20,7 +20,7 @@ using System.Text;
 
 namespace HidSharp.Platform.Libusb
 {
-	static class LibusbApi
+	static class NativeMethods
 	{
 		const string Libusb = "libusb-1.0";
 		

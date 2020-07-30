@@ -21,10 +21,11 @@ using System.ComponentModel;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 
-namespace HidSharp
+namespace HidSharp.Platform.Windows
 {
-    static class WinApi
+    static class NativeMethods
     {
         // For constants, see PInvoke.Net,
         //  http://doxygen.reactos.org/de/d2a/hidclass_8h_source.html
@@ -154,13 +155,6 @@ namespace HidSharp
             }
         }
 
-        public struct OVERLAPPED
-        {
-            public IntPtr Internal, InternalHigh;
-            public uint Offset, OffsetHigh;
-            public IntPtr Event;
-        }
-
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         public struct OSVERSIONINFO
         {
@@ -214,7 +208,7 @@ namespace HidSharp
 
         public static IntPtr CreateManualResetEventOrThrow()
         {
-            IntPtr @event = WinApi.CreateEvent(IntPtr.Zero, true, false, IntPtr.Zero);
+            IntPtr @event = NativeMethods.CreateEvent(IntPtr.Zero, true, false, IntPtr.Zero);
             if (@event == IntPtr.Zero) { throw new IOException("Event creation failed."); }
             return @event;
         }
@@ -222,12 +216,12 @@ namespace HidSharp
         public unsafe static void OverlappedOperation(IntPtr ioHandle,
             IntPtr eventHandle, int eventTimeout, IntPtr closeEventHandle,
             bool overlapResult,
-            ref WinApi.OVERLAPPED overlapped, out uint bytesTransferred)
+            ref NativeOverlapped overlapped, out uint bytesTransferred)
         {
             if (!overlapResult)
             {
                 int win32Error = Marshal.GetLastWin32Error();
-                if (win32Error != WinApi.ERROR_IO_PENDING)
+                if (win32Error != NativeMethods.ERROR_IO_PENDING)
                 {
                     throw new IOException("Operation failed early.", new Win32Exception());
                 }
@@ -235,19 +229,19 @@ namespace HidSharp
                 IntPtr* handles = stackalloc IntPtr[2];
                 handles[0] = eventHandle; handles[1] = closeEventHandle;
                 uint timeout = eventTimeout < 0 ? ~(uint)0 : (uint)eventTimeout;
-                uint waitResult = WinApi.WaitForMultipleObjects(2, handles, false, timeout);
+                uint waitResult = NativeMethods.WaitForMultipleObjects(2, handles, false, timeout);
                 switch (waitResult)
                 {
-                    case WinApi.WAIT_OBJECT_0: break;
-                    case WinApi.WAIT_OBJECT_1: CancelIo(ioHandle); throw new IOException("Connection closed.");
+                    case NativeMethods.WAIT_OBJECT_0: break;
+                    case NativeMethods.WAIT_OBJECT_1: CancelIo(ioHandle); throw new IOException("Connection closed.");
                     default: throw new TimeoutException("Operation timed out.");
                 }
             }
 
-            if (!WinApi.GetOverlappedResult(ioHandle, ref overlapped, out bytesTransferred, true))
+            if (!NativeMethods.GetOverlappedResult(ioHandle, ref overlapped, out bytesTransferred, true))
             {
                 int win32Error = Marshal.GetLastWin32Error();
-                if (win32Error != WinApi.ERROR_HANDLE_EOF)
+                if (win32Error != NativeMethods.ERROR_HANDLE_EOF)
                 {
                     throw new IOException("Operation failed after some time.", new Win32Exception());
                 }
@@ -264,41 +258,41 @@ namespace HidSharp
         public static extern void HidD_GetHidGuid(out Guid hidGuid);
 
         [DllImport("hid.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
+        [return: MarshalAs(UnmanagedType.U1)]
         public static extern bool HidD_GetAttributes(IntPtr handle, ref HIDD_ATTRIBUTES attributes);
 
-        [DllImport("hid.dll", CharSet=CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
+        [DllImport("hid.dll", CharSet = CharSet.Auto)]
+        [return: MarshalAs(UnmanagedType.U1)]
         public static extern bool HidD_GetManufacturerString(IntPtr handle, char[] buffer, int bufferLengthInBytes);
 
         [DllImport("hid.dll", CharSet = CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
+        [return: MarshalAs(UnmanagedType.U1)]
         public static extern bool HidD_GetProductString(IntPtr handle, char[] buffer, int bufferLengthInBytes);
 
         [DllImport("hid.dll", CharSet = CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
+        [return: MarshalAs(UnmanagedType.U1)]
         public static extern bool HidD_GetSerialNumberString(IntPtr handle, char[] buffer, int bufferLengthInBytes);
 
         [DllImport("hid.dll", CharSet = CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
+        [return: MarshalAs(UnmanagedType.U1)]
         public unsafe static extern bool HidD_GetFeature(IntPtr handle, byte* buffer, int bufferLength);
 
         [DllImport("hid.dll", CharSet = CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
+        [return: MarshalAs(UnmanagedType.U1)]
         public unsafe static extern bool HidD_SetFeature(IntPtr handle, byte* buffer, int bufferLength);
 
         [DllImport("hid.dll", CharSet = CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
+        [return: MarshalAs(UnmanagedType.U1)]
         public unsafe static extern bool HidD_GetPreparsedData(IntPtr handle, out IntPtr preparsed);
 
         [DllImport("hid.dll", CharSet = CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
+        [return: MarshalAs(UnmanagedType.U1)]
         public unsafe static extern bool HidD_FreePreparsedData(IntPtr preparsed);
 
         [DllImport("hid.dll", CharSet = CharSet.Auto)]
         public unsafe static extern int HidP_GetCaps(IntPtr preparsed, out HIDP_CAPS caps);
 
-        [DllImport("setupapi.dll", SetLastError = true)]
+        [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern HDEVINFO SetupDiGetClassDevs
             ([MarshalAs(UnmanagedType.LPStruct)] Guid classGuid, string enumerator, IntPtr hwndParent, DIGCF flags);
 
@@ -350,12 +344,12 @@ namespace HidSharp
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public unsafe static extern bool ReadFile(IntPtr handle, byte* buffer, int bytesToRead,
-            IntPtr bytesRead, ref OVERLAPPED overlapped);
+            IntPtr bytesRead, ref NativeOverlapped overlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public unsafe static extern bool WriteFile(IntPtr handle, byte* buffer, int bytesToWrite,
-            IntPtr bytesWritten, ref OVERLAPPED overlapped);
+            IntPtr bytesWritten, ref NativeOverlapped overlapped);
 
         public static string NTString(char[] buffer)
         {
@@ -371,20 +365,17 @@ namespace HidSharp
         [return: MarshalAs(UnmanagedType.Bool)]
         public unsafe static extern bool DeviceIoControl(IntPtr handle,
             uint ioControlCode, byte* inBuffer, uint inBufferSize, byte* outBuffer, uint outBufferSize,
-            IntPtr bytesReturned, ref OVERLAPPED overlapped);
+            IntPtr bytesReturned, ref NativeOverlapped overlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool GetOverlappedResult(IntPtr handle,
-            ref OVERLAPPED overlapped, out uint bytesTransferred,
+            ref NativeOverlapped overlapped, out uint bytesTransferred,
             [MarshalAs(UnmanagedType.Bool)] bool wait);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SetEvent(IntPtr handle);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public unsafe static extern uint WaitForMultipleObjects(uint count, IntPtr* handles,

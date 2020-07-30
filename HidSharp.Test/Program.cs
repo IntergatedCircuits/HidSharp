@@ -14,10 +14,15 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 #endregion
 
+//#define SAMPLE_OPEN_AND_READ
+#define SAMPLE_DYMO_SCALE
+
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using HidSharp;
+using HidSharp.DeviceHelpers;
 using HidSharp.ReportDescriptors;
 using HidSharp.ReportDescriptors.Parser;
 using HidSharp.ReportDescriptors.Units;
@@ -30,23 +35,39 @@ namespace HidSharp.Test
         {
             HidDeviceLoader loader = new HidDeviceLoader();
 			Console.WriteLine("Complete device list:");
-            foreach (HidDevice dev in loader.GetDevices()) { Console.WriteLine(dev); }
-			
-			Console.WriteLine("Opening HID device...");
-            HidStream stream;
-            if (loader
-                .GetDeviceOrDefault(vendorID: 0x268b, productID: 0x0001)
-                .TryOpen(out stream))
-            {				
-				int n = 0;
-                while (true)
-				{
-                byte[] test = new byte[62];
-                test[0] = 2;
-                test[1] = 60;
-                stream.Write(test);
+            foreach (HidDevice dev in loader.GetDevices())
+            {
+                Console.WriteLine(dev);
+            }
+            Console.WriteLine();
 
-                    byte[] bytes = new byte[62];
+			Console.WriteLine("Opening HID device...");
+
+#if SAMPLE_OPEN_AND_READ
+            var device = loader.GetDeviceOrDefault(vendorID: 0x268b, productID: 0x0101);
+            if (device == null) { Console.WriteLine("Failed to open device."); Environment.Exit(1); }
+
+            Console.Write(@"
+Max Lengths:
+  Input:   {0}
+  Output:  {1}
+  Feature: {2}
+
+"
+, device.MaxInputReportLength
+, device.MaxOutputReportLength
+, device.MaxFeatureReportLength
+);
+
+            HidStream stream;
+            if (!device.TryOpen(out stream)) { Console.WriteLine("Failed to open device."); Environment.Exit(2); }
+
+            using (stream)
+            {
+			    int n = 0;
+                while (true)
+			    {
+                    byte[] bytes = new byte[device.MaxInputReportLength];
                     int count = stream.Read(bytes, 0, bytes.Length);
 					
                     if (count > 0)
@@ -59,47 +80,41 @@ namespace HidSharp.Test
                         }
 
                         Console.WriteLine();
-						if (++n == 1000) { stream.Close(); break; }
-                        /*if (bytes[0] == 2)
-                        {
-                            byte[] cc = new byte[258];
-                            cc[0] = 1;
-                            cc[1] = (byte)(++k & 7);
-                            stream.Write(cc, 0, cc.Length);
-                        }*/
+					    if (++n == 100) { break; }
                     }
-
-                    /*if (!first)
-                    {
-                        stream.SetFeature(new byte[] { 1, 6 }, 0, 2);
-                        first = true;
-                    }*/
                 }
             }
+#elif SAMPLE_DYMO_SCALE
+            HidDevice scale = loader.GetDeviceOrDefault(24726, 344);
+            if (scale == null) { Console.WriteLine("Failed to find scale device."); Environment.Exit(1); }
 
-            /*HidDevice scale = loader.GetDeviceOrDefault(24726, 344);
+            HidStream stream;
+            if (!scale.TryOpen(out stream)) { Console.WriteLine("Failed to open scale device."); Environment.Exit(2); }
 
-            if (scale != null)
+            using (stream)
             {
-                Stream stream;
-                if (scale.TryOpen(out stream))
+                int n = 0; DymoScale scaleReader = new DeviceHelpers.DymoScale(stream);
+                while (true)
                 {
-                    DymoScale scaleReader = new DymoScale();
-                    scaleReader.Stream = stream;
+                    int value, exponent;
+                    DymoScaleUnit unit; string unitName;
+                    DymoScaleStatus status; string statusName;
+                    bool buffered;
 
-                    while (true)
-                    {
-                        int value, exponent; string unit, status; bool buffered;
-                        scaleReader.ReadSample(out value, out exponent, out unit, out status, out buffered);
-                        Console.WriteLine("{4}  {0}: {1}x10^{2} {3} ", status, value, exponent, unit, buffered ? "b" : " ");
-                    }
+                    scaleReader.ReadSample(out value, out exponent, out unit, out status, out buffered);
+                    unitName = DymoScale.GetNameFromUnit(unit);
+                    statusName = DymoScale.GetNameFromStatus(status);
 
-                    stream.Close();
+                    Console.WriteLine("{4}  {0}: {1}x10^{2} {3} ", statusName, value, exponent, unitName, buffered ? "b" : " ");
+                    if (!buffered) { if (++n == 100) { break; } }
                 }
-            }*/
+            }
+#else
+#error "No sample selected."
+#endif
 			
-			Console.WriteLine("...");
-            //Console.ReadKey();
+			Console.WriteLine("Press a key to exit...");
+            Console.ReadKey();
         }
     }
 }

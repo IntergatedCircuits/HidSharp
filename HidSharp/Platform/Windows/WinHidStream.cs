@@ -31,18 +31,18 @@ namespace HidSharp.Platform.Windows
 
         internal WinHidStream()
         {
-            _closeEventHandle = WinApi.CreateManualResetEventOrThrow();
+            _closeEventHandle = NativeMethods.CreateManualResetEventOrThrow();
         }
 
         ~WinHidStream()
         {
 			Close();
-            WinApi.CloseHandle(_closeEventHandle);
+            NativeMethods.CloseHandle(_closeEventHandle);
         }
 
         internal void Init(string path, WinHidDevice device)
         {
-            IntPtr handle = WinApi.CreateFileFromDevice(path, WinApi.EFileAccess.Read | WinApi.EFileAccess.Write, WinApi.EFileShare.All);
+            IntPtr handle = NativeMethods.CreateFileFromDevice(path, NativeMethods.EFileAccess.Read | NativeMethods.EFileAccess.Write, NativeMethods.EFileShare.All);
             if (handle == (IntPtr)(-1)) { throw new IOException("Unable to open HID device."); }
 
             _device = device;
@@ -55,14 +55,14 @@ namespace HidSharp.Platform.Windows
             base.Dispose(disposing);
 			if (!HandleClose()) { return; }
 			
-			WinApi.SetEvent(_closeEventHandle);
+			NativeMethods.SetEvent(_closeEventHandle);
 			HandleRelease();
 		}
 		
 		internal override void HandleFree()
 		{
-			WinApi.CloseHandle(ref _handle);
-			WinApi.CloseHandle(ref _closeEventHandle);
+			NativeMethods.CloseHandle(ref _handle);
+			NativeMethods.CloseHandle(ref _closeEventHandle);
 		}
 
         public unsafe override void GetFeature(byte[] buffer, int offset, int count)
@@ -74,7 +74,7 @@ namespace HidSharp.Platform.Windows
 			{
 	            fixed (byte* ptr = buffer)
 	            {
-	                if (!WinApi.HidD_GetFeature(_handle, ptr + offset, count))
+	                if (!NativeMethods.HidD_GetFeature(_handle, ptr + offset, count))
 	                    { throw new IOException("GetFeature failed.", new Win32Exception()); }
 	            }
 			}
@@ -89,7 +89,7 @@ namespace HidSharp.Platform.Windows
         public unsafe override int Read(byte[] buffer, int offset, int count)
         {
             CheckItAll(buffer, offset, count); uint bytesTransferred;
-            IntPtr @event = WinApi.CreateManualResetEventOrThrow();
+            IntPtr @event = NativeMethods.CreateManualResetEventOrThrow();
 			
 			HandleAcquireIfOpenOrFail();
             try
@@ -101,10 +101,10 @@ namespace HidSharp.Platform.Windows
 	
 	                fixed (byte* ptr = _readBuffer)
 	                {
-	                    WinApi.OVERLAPPED overlapped = new WinApi.OVERLAPPED();
-	                    overlapped.Event = @event;
-	                    WinApi.OverlappedOperation(_handle, @event, ReadTimeout, _closeEventHandle,
-	                        WinApi.ReadFile(_handle, ptr, maxIn, IntPtr.Zero, ref overlapped),
+                        NativeOverlapped overlapped = new NativeOverlapped();
+	                    overlapped.EventHandle = @event;
+	                    NativeMethods.OverlappedOperation(_handle, @event, ReadTimeout, _closeEventHandle,
+	                        NativeMethods.ReadFile(_handle, ptr, maxIn, IntPtr.Zero, ref overlapped),
 	                        ref overlapped, out bytesTransferred);
 	                    if (count > (int)bytesTransferred) { count = (int)bytesTransferred; }
 	                    Array.Copy(_readBuffer, 0, buffer, offset, count);
@@ -115,7 +115,7 @@ namespace HidSharp.Platform.Windows
             finally
             {
 				HandleRelease();
-                WinApi.CloseHandle(@event);
+                NativeMethods.CloseHandle(@event);
             }
         }
 
@@ -128,7 +128,7 @@ namespace HidSharp.Platform.Windows
 			{
 	            fixed (byte* ptr = buffer)
 	            {
-	                if (!WinApi.HidD_SetFeature(_handle, ptr + offset, count))
+	                if (!NativeMethods.HidD_SetFeature(_handle, ptr + offset, count))
 	                    { throw new IOException("SetFeature failed.", new Win32Exception()); }
 	            }
 			}
@@ -141,7 +141,7 @@ namespace HidSharp.Platform.Windows
         public unsafe override void Write(byte[] buffer, int offset, int count)
         {
             CheckItAll(buffer, offset, count); uint bytesTransferred;
-            IntPtr @event = WinApi.CreateManualResetEventOrThrow();
+            IntPtr @event = NativeMethods.CreateManualResetEventOrThrow();
 
 			HandleAcquireIfOpenOrFail();
             try
@@ -157,10 +157,10 @@ namespace HidSharp.Platform.Windows
 	                    int offset0 = 0;
 	                    while (count > 0)
 	                    {
-	                        WinApi.OVERLAPPED overlapped = new WinApi.OVERLAPPED();
-	                        overlapped.Event = @event;
-	                        WinApi.OverlappedOperation(_handle, @event, WriteTimeout, _closeEventHandle,
-	                            WinApi.WriteFile(_handle, ptr + offset0, count, IntPtr.Zero, ref overlapped),
+	                        NativeOverlapped overlapped = new NativeOverlapped();
+	                        overlapped.EventHandle = @event;
+	                        NativeMethods.OverlappedOperation(_handle, @event, WriteTimeout, _closeEventHandle,
+	                            NativeMethods.WriteFile(_handle, ptr + offset0, count, IntPtr.Zero, ref overlapped),
 	                            ref overlapped, out bytesTransferred);
 	                        count -= (int)bytesTransferred; offset0 += (int)bytesTransferred;
 	                    }
@@ -170,7 +170,7 @@ namespace HidSharp.Platform.Windows
             finally
             {
 				HandleRelease();
-                WinApi.CloseHandle(@event);
+                NativeMethods.CloseHandle(@event);
             }
         }
     }

@@ -16,11 +16,12 @@
 
 using System;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace HidSharp
+namespace HidSharp.Platform.MacOS
 {
-    static class MacApi
+    static class NativeMethods
     {
         const string CoreFoundation = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
         const string CoreServices = "/System/Library/Frameworks/CoreServices.framework/CoreServices";
@@ -79,9 +80,12 @@ namespace HidSharp
 
         public struct io_string_t
         {
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 512)]
+            public byte[] Value;
+
             public override bool Equals(object obj)
             {
-                return obj is io_string_t && Value.SequenceEqual(((io_string_t)obj).Value);
+                return obj is io_string_t && this == (io_string_t)obj;
             }
 
             public override int GetHashCode()
@@ -89,8 +93,15 @@ namespace HidSharp
                 return Value.Length >= 1 ? Value[0] : -1;
             }
 
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 512)]
-            public byte[] Value;
+            public static bool operator ==(io_string_t io1, io_string_t io2)
+            {
+                return io1.Value.SequenceEqual(io2.Value);
+            }
+
+            public static bool operator !=(io_string_t io1, io_string_t io2)
+            {
+                return !(io1 == io2);
+            }
         }
 
         public enum CFNumberType
@@ -269,19 +280,19 @@ namespace HidSharp
         public static extern IOReturn IOObjectRelease(int @object);
 
         [DllImport(IOKit)]
-        public static extern IntPtr IORegistryCreateCFProperty(int entry, IntPtr strKey, IntPtr allocator, IOOptionBits options = IOOptionBits.None);
+        public static extern IntPtr IORegistryEntryCreateCFProperty(int entry, IntPtr strKey, IntPtr allocator, IOOptionBits options = IOOptionBits.None);
 
-        public static int? IORegistryGetCFProperty_Int(int entry, IntPtr strKey)
+        public static int? IORegistryEntryGetCFProperty_Int(int entry, IntPtr strKey)
         {
-            using (var property = IORegistryCreateCFProperty(entry, strKey, IntPtr.Zero).ToCFType())
+            using (var property = IORegistryEntryCreateCFProperty(entry, strKey, IntPtr.Zero).ToCFType())
             {
                 return CFNumberGetValue(property);
             }
         }
 
-        public static string IORegistryGetCFProperty_String(int entry, IntPtr strKey)
+        public static string IORegistryEntryGetCFProperty_String(int entry, IntPtr strKey)
         {
-            using (var property = IORegistryCreateCFProperty(entry, strKey, IntPtr.Zero).ToCFType())
+            using (var property = IORegistryEntryCreateCFProperty(entry, strKey, IntPtr.Zero).ToCFType())
             {
                 return CFStringGetCharacters(property);
             }

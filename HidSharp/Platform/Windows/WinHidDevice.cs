@@ -45,31 +45,31 @@ namespace HidSharp.Platform.Windows
 
         internal bool GetInfo(IntPtr handle)
         {
-            WinApi.HIDD_ATTRIBUTES attributes = new WinApi.HIDD_ATTRIBUTES();
+            NativeMethods.HIDD_ATTRIBUTES attributes = new NativeMethods.HIDD_ATTRIBUTES();
             attributes.Size = Marshal.SizeOf(attributes);
-            if (!WinApi.HidD_GetAttributes(handle, ref attributes)) { return false; }
+            if (!NativeMethods.HidD_GetAttributes(handle, ref attributes)) { return false; }
             
             _pid = attributes.ProductID;
             _vid = attributes.VendorID;
             _version = attributes.VersionNumber;
 
             char[] buffer = new char[128];
-            _manufacturer = WinApi.HidD_GetManufacturerString(handle, buffer, 256) ? WinApi.NTString(buffer) : "";
-            _productName = WinApi.HidD_GetProductString(handle, buffer, 256) ? WinApi.NTString(buffer) : "";
-            _serialNumber = WinApi.HidD_GetSerialNumberString(handle, buffer, 256) ? WinApi.NTString(buffer) : "";
+            _manufacturer = NativeMethods.HidD_GetManufacturerString(handle, buffer, 256) ? NativeMethods.NTString(buffer) : "";
+            _productName = NativeMethods.HidD_GetProductString(handle, buffer, 256) ? NativeMethods.NTString(buffer) : "";
+            _serialNumber = NativeMethods.HidD_GetSerialNumberString(handle, buffer, 256) ? NativeMethods.NTString(buffer) : "";
 
             IntPtr preparsed;
-            if (WinApi.HidD_GetPreparsedData(handle, out preparsed))
+            if (NativeMethods.HidD_GetPreparsedData(handle, out preparsed))
             {
-                WinApi.HIDP_CAPS caps;
-                int statusCaps = WinApi.HidP_GetCaps(preparsed, out caps);
-                if (statusCaps == WinApi.HIDP_STATUS_SUCCESS)
+                NativeMethods.HIDP_CAPS caps;
+                int statusCaps = NativeMethods.HidP_GetCaps(preparsed, out caps);
+                if (statusCaps == NativeMethods.HIDP_STATUS_SUCCESS)
                 {
                     _maxInput = caps.InputReportByteLength;
                     _maxOutput = caps.OutputReportByteLength;
                     _maxFeature = caps.FeatureReportByteLength;
                 }
-                WinApi.HidD_FreePreparsedData(preparsed);
+                NativeMethods.HidD_FreePreparsedData(preparsed);
             }
             return true;
         }

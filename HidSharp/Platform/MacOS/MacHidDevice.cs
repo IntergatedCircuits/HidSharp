@@ -27,9 +27,9 @@ namespace HidSharp.Platform.MacOS
         string _serialNumber;
         int _vid, _pid, _version;
         int _maxInput, _maxOutput, _maxFeature;
-        MacApi.io_string_t _path;
+        NativeMethods.io_string_t _path;
 
-        internal MacHidDevice(MacApi.io_string_t path)
+        internal MacHidDevice(NativeMethods.io_string_t path)
         {
             _path = path;
         }
@@ -43,20 +43,20 @@ namespace HidSharp.Platform.MacOS
 
         internal bool GetInfo(int handle)
         {
-            int? vid = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDVendorIDKey);
-            int? pid = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDProductIDKey);
-            int? version = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDVersionNumberKey);
+            int? vid = NativeMethods.IORegistryEntryGetCFProperty_Int(handle, NativeMethods.kIOHIDVendorIDKey);
+            int? pid = NativeMethods.IORegistryEntryGetCFProperty_Int(handle, NativeMethods.kIOHIDProductIDKey);
+            int? version = NativeMethods.IORegistryEntryGetCFProperty_Int(handle, NativeMethods.kIOHIDVersionNumberKey);
             if (vid == null || pid == null || version == null) { return false; }
 
             _vid = (int)vid;
             _pid = (int)pid;
             _version = (int)version;
-            _maxInput = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDMaxInputReportSizeKey) ?? 0;
-            _maxOutput = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDMaxOutputReportSizeKey) ?? 0;
-            _maxFeature = MacApi.IORegistryGetCFProperty_Int(handle, MacApi.kIOHIDMaxFeatureReportSizeKey) ?? 0;
-            _manufacturer = MacApi.IORegistryGetCFProperty_String(handle, MacApi.kIOHIDManufacturerKey) ?? "";
-            _productName = MacApi.IORegistryGetCFProperty_String(handle, MacApi.kIOHIDProductKey) ?? "";
-            _serialNumber = MacApi.IORegistryGetCFProperty_String(handle, MacApi.kIOHIDSerialNumberKey) ?? "";
+            _maxInput = NativeMethods.IORegistryEntryGetCFProperty_Int(handle, NativeMethods.kIOHIDMaxInputReportSizeKey) ?? 0;
+            _maxOutput = NativeMethods.IORegistryEntryGetCFProperty_Int(handle, NativeMethods.kIOHIDMaxOutputReportSizeKey) ?? 0;
+            _maxFeature = NativeMethods.IORegistryEntryGetCFProperty_Int(handle, NativeMethods.kIOHIDMaxFeatureReportSizeKey) ?? 0;
+            _manufacturer = NativeMethods.IORegistryEntryGetCFProperty_String(handle, NativeMethods.kIOHIDManufacturerKey) ?? "";
+            _productName = NativeMethods.IORegistryEntryGetCFProperty_String(handle, NativeMethods.kIOHIDProductKey) ?? "";
+            _serialNumber = NativeMethods.IORegistryEntryGetCFProperty_String(handle, NativeMethods.kIOHIDSerialNumberKey) ?? "";
             return true;
         }
 

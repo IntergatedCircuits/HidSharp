@@ -44,27 +44,27 @@ namespace HidSharp.Platform.Linux
 			_writeThread.IsBackground = true;
         }
 		
-		int DeviceHandleFromPath(string path)
+		static int DeviceHandleFromPath(string path)
 		{
-			IntPtr udev = LinuxApi.udev_new();
+			IntPtr udev = NativeMethods.udev_new();
 			if (IntPtr.Zero != udev)
 			{
 				try
 				{
-					IntPtr device = LinuxApi.udev_device_new_from_syspath(udev, path);
+					IntPtr device = NativeMethods.udev_device_new_from_syspath(udev, path);
 					if (IntPtr.Zero != device)
 					{
 						try
 						{
-							string devnode = LinuxApi.udev_device_get_devnode(device);
+							string devnode = NativeMethods.udev_device_get_devnode(device);
 							if (devnode != null)
 							{
-								int handle = LinuxApi.retry(() => LinuxApi.open
-								                            (devnode, LinuxApi.oflag.RDWR | LinuxApi.oflag.NONBLOCK));
+								int handle = NativeMethods.retry(() => NativeMethods.open
+								                            (devnode, NativeMethods.oflag.RDWR | NativeMethods.oflag.NONBLOCK));
 								if (handle < 0)
 								{
-									var error = (LinuxApi.error)Marshal.GetLastWin32Error();
-									if (error == LinuxApi.error.EACCES)
+									var error = (NativeMethods.error)Marshal.GetLastWin32Error();
+									if (error == NativeMethods.error.EACCES)
 									{
 										throw new UnauthorizedAccessException("Not permitted to open HID device at " + devnode + ".");
 									}
@@ -78,17 +78,17 @@ namespace HidSharp.Platform.Linux
 						}
 						finally
 						{
-							LinuxApi.udev_device_unref(device);
+							NativeMethods.udev_device_unref(device);
 						}
 					}
 				}
 				finally
 				{
-					LinuxApi.udev_unref(udev);
+					NativeMethods.udev_unref(udev);
 				}
 			}
 			
-			throw new IndexOutOfRangeException("HID device not found.");
+			throw new FileNotFoundException("HID device not found.");
 		}
 		
         internal void Init(string path, LinuxHidDevice device)
@@ -121,7 +121,7 @@ namespace HidSharp.Platform.Linux
 		
 		internal override void HandleFree()
 		{
-			LinuxApi.retry(() => LinuxApi.close(_handle)); _handle = -1;
+			NativeMethods.retry(() => NativeMethods.close(_handle)); _handle = -1;
 		}
 		
 		unsafe void ReadThread()
@@ -134,36 +134,42 @@ namespace HidSharp.Platform.Linux
 				{
 					while (true)
 					{
-						var fds = new LinuxApi.pollfd[1];
+						var fds = new NativeMethods.pollfd[1];
 						fds[0].fd = _handle;
-						fds[0].events = LinuxApi.pollev.IN;
+						fds[0].events = NativeMethods.pollev.IN;
 						
 						while (!_shutdown)
 						{
 						tryReadAgain:
 							int ret;
 							Monitor.Exit(_inputQueue);
-							try { ret = LinuxApi.retry(() => LinuxApi.poll(fds, (IntPtr)1, 250)); }
+							try { ret = NativeMethods.retry(() => NativeMethods.poll(fds, (IntPtr)1, 250)); }
 							finally { Monitor.Enter(_inputQueue); }
 							if (ret != 1) { continue; }
 							
-							if (0 != (fds[0].revents & (LinuxApi.pollev.ERR | LinuxApi.pollev.HUP))) { break; }
-							if (0 != (fds[0].revents & LinuxApi.pollev.IN))
+							if (0 != (fds[0].revents & (NativeMethods.pollev.ERR | NativeMethods.pollev.HUP))) { break; }
+							if (0 != (fds[0].revents & NativeMethods.pollev.IN))
 							{
-								byte[] inputReport = new byte[4096]; // TODO: Use the input report length.
+                                // Linux doesn't provide a Report ID if the device doesn't use one.
+                                int inputLength = _device.MaxInputReportLength;
+                                if (inputLength > 0 && !_device.ReportsUseID) { inputLength--; }
+
+                                byte[] inputReport = new byte[inputLength];
 								fixed (byte* inputBytes = inputReport)
 								{
                                     var inputBytesPtr = (IntPtr)inputBytes;
-									IntPtr length = LinuxApi.retry(() => LinuxApi.read
+									IntPtr length = NativeMethods.retry(() => NativeMethods.read
 									                               (_handle, inputBytesPtr, (IntPtr)inputReport.Length));
 									if ((long)length < 0)
 									{
-										if (Marshal.GetLastWin32Error() != (int)LinuxApi.error.EAGAIN) { break; }
+                                        var error = (NativeMethods.error)Marshal.GetLastWin32Error();
+										if (error != NativeMethods.error.EAGAIN) { break; }
 										goto tryReadAgain;
 									}
-									
-									Array.Resize(ref inputReport, (int)length);
-									_inputQueue.Enqueue(inputReport);
+
+									Array.Resize(ref inputReport, (int)length); // No Report ID? First byte becomes Report ID 0.
+                                    if (!_device.ReportsUseID) { inputReport = new byte[1].Concat(inputReport).ToArray(); }
+									_inputQueue.Enqueue(inputReport); Monitor.PulseAll(_inputQueue);
 								}
 							}
 						}
@@ -187,7 +193,7 @@ namespace HidSharp.Platform.Linux
 
         public override void GetFeature(byte[] buffer, int offset, int count)
         {
-            throw new NotSupportedException();
+            throw new NotSupportedException(); // TODO
         }
 
 		unsafe void WriteThread()
@@ -202,11 +208,16 @@ namespace HidSharp.Platform.Linux
 					{
 						while (!_shutdown && _outputQueue.Count == 0) { Monitor.Wait(_outputQueue); }
 						if (_shutdown) { break; }
-						
+
 						CommonOutputReport outputReport = _outputQueue.Peek();
+
+                        // Linux doesn't expect a Report ID if the device doesn't use one.
+                        byte[] outputBytesRaw = outputReport.Bytes;
+                        if (!_device.ReportsUseID && outputBytesRaw.Length > 0) { outputBytesRaw = outputBytesRaw.Skip(1).ToArray(); }
+
 						try
 						{
-							fixed (byte* outputBytes = outputReport.Bytes)
+							fixed (byte* outputBytes = outputBytesRaw)
 							{
 								// hidraw is apparently blocking for output, even when O_NONBLOCK is used.
 								// See for yourself at drivers/hid/hidraw.c...
@@ -215,9 +226,9 @@ namespace HidSharp.Platform.Linux
                                 try
                                 {
                                     var outputBytesPtr = (IntPtr)outputBytes;
-                                    length = LinuxApi.retry(() => LinuxApi.write
-                                                            (_handle, outputBytesPtr, (IntPtr)outputReport.Bytes.Length));
-                                    if ((long)length == outputReport.Bytes.Length) { outputReport.DoneOK = true; }
+                                    length = NativeMethods.retry(() => NativeMethods.write
+                                                            (_handle, outputBytesPtr, (IntPtr)outputBytesRaw.Length));
+                                    if ((long)length == outputBytesRaw.Length) { outputReport.DoneOK = true; }
                                 }
                                 finally
                                 {
@@ -242,12 +253,12 @@ namespace HidSharp.Platform.Linux
 		
         public override void Write(byte[] buffer, int offset, int count)
         {
-            CommonWrite(buffer, offset, count, _outputQueue, false, 4096);
+            CommonWrite(buffer, offset, count, _outputQueue, false, _device.MaxOutputReportLength);
         }
 
         public override void SetFeature(byte[] buffer, int offset, int count)
         {
-            CommonWrite(buffer, offset, count, _outputQueue, true, 4096);
+            throw new NotSupportedException(); // TODO
         }
     }
 }

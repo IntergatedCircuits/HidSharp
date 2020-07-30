@@ -28,22 +28,22 @@ namespace HidSharp.Platform.Windows
         {
             var paths = new List<string>();
 
-            Guid hidGuid; WinApi.HidD_GetHidGuid(out hidGuid);
-            WinApi.HDEVINFO devInfo = WinApi.SetupDiGetClassDevs(hidGuid, null, IntPtr.Zero, 
-                WinApi.DIGCF.AllClasses | WinApi.DIGCF.DeviceInterface | WinApi.DIGCF.Present);
+            Guid hidGuid; NativeMethods.HidD_GetHidGuid(out hidGuid);
+            NativeMethods.HDEVINFO devInfo = NativeMethods.SetupDiGetClassDevs(hidGuid, null, IntPtr.Zero, 
+                NativeMethods.DIGCF.AllClasses | NativeMethods.DIGCF.DeviceInterface | NativeMethods.DIGCF.Present);
 
             if (devInfo.IsValid)
             {
                 try   
                 {
-                    WinApi.SP_DEVICE_INTERFACE_DATA did = new WinApi.SP_DEVICE_INTERFACE_DATA();
+                    NativeMethods.SP_DEVICE_INTERFACE_DATA did = new NativeMethods.SP_DEVICE_INTERFACE_DATA();
                     did.Size = Marshal.SizeOf(did);
 
-                    for (int i = 0; WinApi.SetupDiEnumDeviceInterfaces(devInfo, IntPtr.Zero, hidGuid, i, ref did); i ++)
+                    for (int i = 0; NativeMethods.SetupDiEnumDeviceInterfaces(devInfo, IntPtr.Zero, hidGuid, i, ref did); i ++)
                     {
-                        WinApi.SP_DEVICE_INTERFACE_DETAIL_DATA didetail = new WinApi.SP_DEVICE_INTERFACE_DETAIL_DATA();
+                        NativeMethods.SP_DEVICE_INTERFACE_DETAIL_DATA didetail = new NativeMethods.SP_DEVICE_INTERFACE_DETAIL_DATA();
                         didetail.Size = IntPtr.Size == 8 ? 8 : (4 + Marshal.SystemDefaultCharSize);
-                        if (WinApi.SetupDiGetDeviceInterfaceDetail(devInfo, ref did, ref didetail,
+                        if (NativeMethods.SetupDiGetDeviceInterfaceDetail(devInfo, ref did, ref didetail,
                             Marshal.SizeOf(didetail) - (int)Marshal.OffsetOf(didetail.GetType(), "DevicePath"),
                             IntPtr.Zero, IntPtr.Zero))
                         {
@@ -53,7 +53,7 @@ namespace HidSharp.Platform.Windows
                 }
                 finally
                 {
-                    WinApi.SetupDiDestroyDeviceInfoList(devInfo);
+                    NativeMethods.SetupDiDestroyDeviceInfoList(devInfo);
                 }
             }
 
@@ -63,7 +63,7 @@ namespace HidSharp.Platform.Windows
         protected override bool TryCreateDevice(object key, out HidDevice device)
         {
             string path = (string)key; var hidDevice = new WinHidDevice(path);
-            IntPtr handle = WinApi.CreateFileFromDevice(path, WinApi.EFileAccess.None, WinApi.EFileShare.All);
+            IntPtr handle = NativeMethods.CreateFileFromDevice(path, NativeMethods.EFileAccess.None, NativeMethods.EFileShare.All);
 
             try
             {
@@ -71,7 +71,7 @@ namespace HidSharp.Platform.Windows
             }
             finally
             {
-                if (handle != (IntPtr)(-1)) { WinApi.CloseHandle(handle); }
+                if (handle != (IntPtr)(-1)) { NativeMethods.CloseHandle(handle); }
             }
 
             device = hidDevice; return true;
@@ -81,12 +81,12 @@ namespace HidSharp.Platform.Windows
         {
             get
             {
-                var version = new WinApi.OSVERSIONINFO();
-                version.OSVersionInfoSize = Marshal.SizeOf(typeof(WinApi.OSVERSIONINFO));
+                var version = new NativeMethods.OSVERSIONINFO();
+                version.OSVersionInfoSize = Marshal.SizeOf(typeof(NativeMethods.OSVERSIONINFO));
 
                 try
                 {
-                    if (WinApi.GetVersionEx(ref version))
+                    if (NativeMethods.GetVersionEx(ref version))
                     {
                         return true;
                     }
