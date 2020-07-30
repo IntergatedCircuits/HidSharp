@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -29,7 +29,7 @@ namespace HidSharp.Platform.MacOS
         {
             _path = path;
         }
-		
+
         public override HidStream Open()
         {
             var stream = new MacHidStream();
@@ -54,6 +54,11 @@ namespace HidSharp.Platform.MacOS
             _productName = NativeMethods.IORegistryEntryGetCFProperty_String(handle, NativeMethods.kIOHIDProductKey) ?? "";
             _serialNumber = NativeMethods.IORegistryEntryGetCFProperty_String(handle, NativeMethods.kIOHIDSerialNumberKey) ?? "";
             return true;
+        }
+
+        public override string DevicePath
+        {
+            get { return _path.ToString(); }
         }
 
         public override int MaxInputReportLength

@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -18,16 +18,9 @@
 //#define SAMPLE_DYMO_SCALE
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Threading;
-using HidSharp;
-using HidSharp.DeviceHelpers;
-using HidSharp.ReportDescriptors;
-using HidSharp.ReportDescriptors.Parser;
-using HidSharp.ReportDescriptors.Units;
 
 namespace HidSharp.Test
 {
@@ -64,10 +57,14 @@ Max Lengths:
   Output:  {1}
   Feature: {2}
 
+The operating system name for this device is:
+  {3}
+
 "
 , device.MaxInputReportLength
 , device.MaxOutputReportLength
 , device.MaxFeatureReportLength
+, device.DevicePath
 );
 
             HidStream stream;

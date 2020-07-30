@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2010 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2010, 2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -98,6 +98,11 @@ namespace HidSharp.Platform.Windows
             }
 
             lock (_completeSync) { _complete = true; Monitor.PulseAll(_completeSync); }
+        }
+
+        public override string DevicePath
+        {
+            get { return _path; }
         }
 
         public override int MaxInputReportLength

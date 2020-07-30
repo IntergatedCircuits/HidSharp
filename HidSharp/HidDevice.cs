@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2010-2013 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2010-2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -63,6 +63,17 @@ namespace HidSharp
 				stream = null; return false;
 			}
 		}
+
+        /// <summary>
+        /// The operating system's name for the device.
+        /// 
+        /// If you have multiple devices with the same Vendor ID, Product ID, Serial Number. etc.,
+        /// this may be useful for differentiating them.
+        /// </summary>
+        public abstract string DevicePath
+        {
+            get;
+        }
 
         /// <summary>
         /// The maximum input report length, including the Report ID byte.
@@ -131,6 +142,7 @@ namespace HidSharp
             get;
         }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             return string.Format(CultureInfo.InvariantCulture, "{0} ({1}VID {2}, PID {3}, version {4})",

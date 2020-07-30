@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -136,6 +136,11 @@ namespace HidSharp.Platform.Linux
             }
 
             return false;
+        }
+
+        public override string DevicePath
+        {
+            get { return _path; }
         }
 
         public override int MaxInputReportLength

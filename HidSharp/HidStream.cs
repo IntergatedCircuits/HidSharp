@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -340,14 +340,24 @@ namespace HidSharp
             set { throw new NotSupportedException(); }
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// The maximum amount of time, in milliseconds, to wait for to receive a HID report.
+        /// 
+        /// The default is 3000 milliseconds.
+        /// To disable the timeout, set this to <see cref="Timeout.Infinite"/>.
+        /// </summary>
         public sealed override int ReadTimeout
         {
             get;
             set;
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// The maximum amount of time, in milliseconds, to wait for the device to acknowledge a HID report.
+        /// 
+        /// The default is 3000 milliseconds.
+        /// To disable the timeout, set this to <see cref="Timeout.Infinite"/>.
+        /// </summary>
         public sealed override int WriteTimeout
         {
             get;

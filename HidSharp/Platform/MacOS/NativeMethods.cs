@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -17,6 +17,7 @@
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace HidSharp.Platform.MacOS
 {
@@ -90,6 +91,11 @@ namespace HidSharp.Platform.MacOS
             public override int GetHashCode()
             {
                 return Value.Length >= 1 ? Value[0] : -1;
+            }
+
+            public override string ToString()
+            {
+                return Encoding.UTF8.GetString(Value.TakeWhile(ch => ch != 0).ToArray());
             }
 
             public static bool operator ==(io_string_t io1, io_string_t io2)
