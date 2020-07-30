@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2015-2016, 2018 James F. Bellinger <http://www.zer7.com/software/hidsharp>
+/* Copyright 2015-2016, 2018-2019 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.InteropServices;
+using HidSharp.Experimental;
 
 namespace HidSharp
 {
@@ -51,13 +52,44 @@ namespace HidSharp
 
         }
 
+        /*
+        public abstract BleDiscovery BeginBleDiscovery();
+        */
+
+        public virtual IEnumerable<Device> GetDevices(DeviceTypes types)
+        {
+            // Improve performance by implementing this override.
+            return GetAllDevices().Where(device =>
+                {
+                    if (device is HidDevice && 0 != (types & DeviceTypes.Hid)) { return true; }
+                    if (device is SerialDevice && 0 != (types & DeviceTypes.Serial)) { return true; }
+                    if (device is BleDevice && 0 != (types & DeviceTypes.Ble)) { return true; }
+                    return false;
+                });
+        }
+
+        public IEnumerable<Device> GetDevices(DeviceTypes types, DeviceFilter filter)
+        {
+            Throw.If.Null(filter, "filter");
+            return GetDevices(types).Where(device => filter(device));
+        }
+
+        /// <summary>
+        /// Gets a list of all connected BLE devices.
+        /// </summary>
+        /// <returns>The device list.</returns>
+        public IEnumerable<BleDevice> GetBleDevices()
+        {
+            return GetDevices(DeviceTypes.Ble).Cast<BleDevice>();
+        }
+
         /// <summary>
         /// Gets a list of all connected HID devices.
         /// </summary>
         /// <returns>The device list.</returns>
         public IEnumerable<HidDevice> GetHidDevices()
         {
-            return GetAllDevices().OfType<HidDevice>();
+            return GetDevices(DeviceTypes.Hid).Cast<HidDevice>();
         }
 
         /// <summary>
@@ -70,7 +102,7 @@ namespace HidSharp
         /// <returns>The filtered device list.</returns>
         public IEnumerable<HidDevice> GetHidDevices(int? vendorID = null, int? productID = null, int? releaseNumberBcd = null, string serialNumber = null)
         {
-            return GetAllDevices(d => DeviceFilterHelper.MatchHidDevices(d, vendorID, productID, releaseNumberBcd, serialNumber)).Cast<HidDevice>();
+            return GetDevices(DeviceTypes.Hid, d => DeviceFilterHelper.MatchHidDevices(d, vendorID, productID, releaseNumberBcd, serialNumber)).Cast<HidDevice>();
         }
 
         /// <summary>
@@ -79,11 +111,11 @@ namespace HidSharp
         /// <returns>The device list.</returns>
         public IEnumerable<SerialDevice> GetSerialDevices()
         {
-            return GetAllDevices().OfType<SerialDevice>();
+            return GetDevices(DeviceTypes.Serial).Cast<SerialDevice>();
         }
 
         /// <summary>
-        /// Gets a list of all connected HID and serial devices.
+        /// Gets a list of all connected HID, BLE, and serial devices.
         /// </summary>
         /// <returns>The device list.</returns>
         public abstract IEnumerable<Device> GetAllDevices();

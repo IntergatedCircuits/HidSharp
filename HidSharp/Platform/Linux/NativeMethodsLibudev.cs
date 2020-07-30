@@ -23,7 +23,7 @@ namespace HidSharp.Platform.Linux
     {
         static NativeMethodsLibudev()
         {
-            foreach (var instance in new NativeMethodsLibudev[] { new NativeMethodsLibudev0(), new NativeMethodsLibudev1() })
+            foreach (var instance in new NativeMethodsLibudev[] { new NativeMethodsLibudev1(), new NativeMethodsLibudev0() })
             {
                 try
                 {

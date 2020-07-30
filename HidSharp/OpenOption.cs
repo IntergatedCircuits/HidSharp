@@ -77,6 +77,8 @@ namespace HidSharp
         /// </summary>
         public static OpenOption Transient { get; private set; }
 
+        internal static OpenOption BleService { get; private set; }
+
         OpenOptionDeserializeCallback _deserializeCallback;
         OpenOptionSerializeCallback _serializeCallback;
 
@@ -121,6 +123,11 @@ namespace HidSharp
                                        serializeCallback: SerializeBoolean,
                                        defaultValue: false,
                                        friendlyName: "Transient");
+            BleService = OpenOption.New(new Guid("{A0E7B2C1-656D-40FB-9C29-3CD28F54D45D}"),
+                                        deserializeCallback: _ => { throw new NotImplementedException(); },
+                                        serializeCallback: _ => { throw new NotImplementedException(); },
+                                        defaultValue: null,
+                                        friendlyName: "BLE Service");
         }
 
         OpenOption()

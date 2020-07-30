@@ -21,6 +21,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
+using HidSharp.Utility;
 
 namespace HidSharp.Platform.MacOS
 {
@@ -81,7 +82,7 @@ namespace HidSharp.Platform.MacOS
                         throw DeviceException.CreateIOException(Device, error);
                     }
 
-                    Debug.WriteLine(string.Format("Retrying ({0})", error));
+                    HidSharpDiagnostics.Trace("Retrying ({0})", error);
                     Thread.Sleep(100);
                 }
             }
@@ -94,7 +95,6 @@ namespace HidSharp.Platform.MacOS
 		
         protected override void Dispose(bool disposing)
         {
-            base.Dispose(disposing);
 			if (!HandleClose()) { return; }
 
             _shutdown = true;
@@ -118,6 +118,8 @@ namespace HidSharp.Platform.MacOS
 
             try { _writeThread.Join(); } catch { }
 			HandleRelease();
+
+            base.Dispose(disposing);
         }
 
 		internal override void HandleFree()

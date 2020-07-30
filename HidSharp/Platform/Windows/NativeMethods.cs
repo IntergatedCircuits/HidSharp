@@ -19,16 +19,25 @@
 
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
+using HidSharp.Experimental;
+using HidSharp.Utility;
 
 namespace HidSharp.Platform.Windows
 {
     unsafe static class NativeMethods
     {
+        public static readonly Guid GuidForBluetoothLEDevice = new Guid("{781AEE18-7733-4CE4-ADD0-91F41C67B592}");
+        public static readonly Guid GuidForBluetoothHciEvent = new Guid("{FC240062-1541-49BE-B463-84C4DCD7BF7F}");
+        public static readonly Guid GuidForBluetoothRadioInRange = new Guid("{EA3B5B82-26EE-450E-B0D8-D26FE30A3869}");
+        public static readonly Guid GuidForBluetoothRadioOutOfRange = new Guid("{E28867C9-C2AA-4CED-B969-4570866037C4}");
         public static readonly Guid GuidForComPort = new Guid("{86E0D1E0-8089-11D0-9CE4-08003E301F73}");
+        public static readonly Guid GuidForPortsClass = new Guid("{4D36E978-E325-11CE-BFC1-08002BE10318}");
         public static readonly Guid GuidForUsbHub = new Guid("{F18A0E88-C30C-11D0-8815-00A0C906BED8}");
 
         // For constants, see PInvoke.Net,
@@ -40,19 +49,30 @@ namespace HidSharp.Platform.Windows
         public const int ERROR_GEN_FAILURE = 31;
         public const int ERROR_HANDLE_EOF = 38;
         public const int ERROR_INSUFFICIENT_BUFFER = 122;
+        public const int ERROR_NO_MORE_ITEMS = 259;
         public const int ERROR_OPERATION_ABORTED = 995;
         public const int ERROR_IO_PENDING = 997;
+        public const int ERROR_INVALID_PARAMETER = unchecked((int)0x80070057);
+        public const int ERROR_MORE_DATA = unchecked((int)0x800700ea);
+        public const int ERROR_NOT_FOUND = unchecked((int)0x80070490);
         public const uint FILE_ANY_ACCESS = 0;
         public const uint FILE_DEVICE_KEYBOARD = 11;
         public const uint FILE_DEVICE_UNKNOWN = 34;
+        public const uint HKEY_CURRENT_USER = 0x80000001;
+        public const uint HKEY_LOCAL_MACHINE = 0x80000002;
         public const uint KEY_ALL_ACCESS = 0xf003f;
+        public const uint KEY_NOTIFY = 0x00010;
         public const uint KEY_READ = 0x20019;
         public const uint KEY_WRITE = 0x20006;
         public const uint METHOD_BUFFERED = 0;
         public const uint METHOD_NEITHER = 3;
+        public const uint REG_NOTIFY_CHANGE_NAME = 1;
+        public const uint REG_NOTIFY_CHANGE_LAST_SET = 4;
         public const uint REG_SZ = 1;
         public const uint SPDRP_DEVICEDESC = 0;
+        public const uint SPDRP_HARDWAREID = 1;
         public const uint SPDRP_FRIENDLYNAME = 12;
+        public const uint SPDRP_ADDRESS = 28;
         public const uint WAIT_OBJECT_0 = 0;
         public const uint WAIT_OBJECT_1 = 1;
         public const uint WAIT_TIMEOUT = 258;
@@ -77,6 +97,8 @@ namespace HidSharp.Platform.Windows
         public const uint PURGE_RXABORT = 2;
         public const uint PURGE_TXCLEAR = 4;
         public const uint PURGE_RXCLEAR = 8;
+
+        public const int DN_DEVICE_DISCONNECTED = 0x2000000;
 
         public static uint CTL_CODE(uint devType, uint func, uint method, uint access)
         {
@@ -105,6 +127,24 @@ namespace HidSharp.Platform.Windows
         public static readonly uint IOCTL_USB_GET_NODE_CONNECTION_DRIVERKEY_NAME = CTL_CODE(FILE_DEVICE_UNKNOWN, 264, METHOD_BUFFERED, FILE_ANY_ACCESS);
 
         public const uint CM_DRP_DRIVER = 10;
+
+        public const int BLUETOOTH_MAX_NAME_SIZE = 248;
+
+        public enum WM_DEVICECHANGE_wParam
+        {
+            DBT_CONFIGCHANGECANCELED = 0x0019,
+            DBT_CONFIGCHANGED = 0x0018,
+            DBT_CUSTOMEVENT = 0x8006,
+            DBT_DEVICEARRIVAL = 0x8000,
+            DBT_DEVICEQUERYREMOVE = 0x8001,
+            DBT_DEVICEQUERYREMOVEFAILED = 0x8002,
+            DBT_DEVICEREMOVECOMPLETE = 0x8004,
+            DBT_DEVICEREMOVEPENDING = 0x8003,
+            DBT_DEVICETYPESPECIFIC = 0x8005,
+            DBT_DEVNODES_CHANGED = 0x0007,
+            DBT_QUERYCHANGECONFIG = 0x0017,
+            DBT_USERDEFINED = 0xFFFF
+        }
 
         [Flags]
         public enum EFileAccess : uint
@@ -224,11 +264,28 @@ namespace HidSharp.Platform.Windows
             public string MenuName, ClassName;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DEV_BROADCAST_HDR
+        {
+            public int Size, DeviceType, Reserved;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
         public struct DEV_BROADCAST_DEVICEINTERFACE
         {
             public int Size, DeviceType, Reserved;
             public Guid ClassGuid;
             public char Name;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DEV_BROADCAST_HANDLE
+        {
+            public int Size, DeviceType, Reserved;
+            public IntPtr DeviceHandle, NotifyHandle;
+            public Guid EventGuid;
+            public int NameOffset;
+            public fixed byte Data[1];
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
@@ -503,9 +560,329 @@ namespace HidSharp.Platform.Windows
             public uint WriteTotalTimeoutConstant;
         }
 
+        [StructLayout(LayoutKind.Explicit, Size = 20)]
+        public struct BTH_LE_UUID
+        {
+            [FieldOffset(0)]
+            [MarshalAs(UnmanagedType.I1)]
+            public byte IsShortUuid;
+
+            [FieldOffset(4)]
+            public ushort ShortUuid;
+
+            [FieldOffset(4)]
+            public Guid LongUuid;
+
+            public BleUuid ToGuid()
+            {
+                return IsShortUuid != 0 ? new BleUuid(ShortUuid) : new BleUuid(LongUuid);
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BTH_LE_GATT_SERVICE
+        {
+            public BTH_LE_UUID ServiceUuid;
+            public ushort AttributeHandle;
+        }
+
+        [StructLayout(LayoutKind.Explicit, Size = 36)]
+        public struct BTH_LE_GATT_CHARACTERISTIC
+        {
+            public const int Size = 36;
+
+            [FieldOffset(0)]
+            public ushort ServiceHandle;
+
+            [FieldOffset(4)]
+            public BTH_LE_UUID CharacteristicUuid;
+
+            [FieldOffset(24)]
+            public ushort AttributeHandle;
+
+            [FieldOffset(26)]
+            public ushort CharacteristicValueHandle;
+
+            [FieldOffset(28)]
+            public byte IsBroadcastable;
+
+            [FieldOffset(29)]
+            public byte IsReadable;
+            
+            [FieldOffset(30)]
+            public byte IsWritable;
+
+            [FieldOffset(31)]
+            public byte IsWritableWithoutResponse;
+
+            [FieldOffset(32)]
+            public byte IsSignedWritable;
+
+            [FieldOffset(33)]
+            public byte IsNotifiable;
+
+            [FieldOffset(34)]
+            public byte IsIndicatable;
+
+            [FieldOffset(35)]
+            public byte HasExtendedProperties;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BLUETOOTH_GATT_VALUE_CHANGED_EVENT
+        {
+            public ushort ChangedAttributeHandle;
+            public UIntPtr CharacteristicValueDataSize;
+            public BTH_LE_GATT_CHARACTERISTIC_VALUE* CharacteristicValue;
+        }
+
+        [StructLayout(LayoutKind.Explicit, Size = 4)]
+        public struct BLUETOOTH_GATT_VALUE_CHANGED_EVENT_REGISTRATION
+        {
+            public const int Size = 4;
+
+            [FieldOffset(0)]
+            public ushort NumCharacteristics;
+
+            //[FieldOffset(4)]
+            //public fixed BTH_LE_GATT_CHARACTERISTIC Characteristics[1];
+        }
+
+        [StructLayout(LayoutKind.Explicit, Size = BTH_LE_GATT_CHARACTERISTIC_VALUE.Size)]
+        public struct BTH_LE_GATT_CHARACTERISTIC_VALUE
+        {
+            public const int Size = 4;
+
+            [FieldOffset(0)]
+            public uint DataSize;
+
+            [FieldOffset(4)]
+            public fixed byte Data[1];
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BTH_LE_GATT_DESCRIPTOR
+        {
+            public ushort ServiceHandle;
+            public ushort CharacteristicHandle;
+            public BTH_LE_GATT_DESCRIPTOR_TYPE DescriptorType;
+            public BTH_LE_UUID DescriptorUuid;
+            public ushort AttributeHandle;
+        }
+
+        public enum BTH_LE_GATT_DESCRIPTOR_TYPE
+        {
+            CharacteristicExtendedProperties,
+            CharacteristicUserDescription,
+            ClientCharacteristicConfiguration,
+            ServerCharacteristicConfiguration,
+            CharacteristicFormat,
+            CharacteristicAggregateFormat,
+            CustomDescriptor
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BTH_LE_GATT_DESCRIPTOR_VALUE_EXTENDED_PROPERTIES
+        {
+            public byte IsReliableWriteEnabled;
+            public byte IsAuxiliariesWritable;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BTH_LE_GATT_DESCRIPTOR_VALUE_CCCD
+        {
+            public byte IsSubscribeToNotification;
+            public byte IsSubscribeToIndication;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BTH_LE_GATT_DESCRIPTOR_VALUE_SCCD
+        {
+            public byte IsBroadcast;
+        }
+
+        [StructLayout(LayoutKind.Explicit, Size = 48)]
+        public struct BTH_LE_GATT_DESCRIPTOR_VALUE_FORMAT
+        {
+            [FieldOffset(0)]
+            public byte Format;
+
+            [FieldOffset(1)]
+            public byte Exponent;
+
+            [FieldOffset(4)]
+            public BTH_LE_UUID Unit;
+
+            [FieldOffset(24)]
+            public byte Namespace;
+
+            [FieldOffset(28)]
+            public BTH_LE_UUID Description;
+        }
+
+        [StructLayout(LayoutKind.Explicit, Size = 48)]
+        public struct BTH_LE_GATT_DESCRIPTOR_VALUE_PARAMS
+        {
+            [FieldOffset(0)]
+            public BTH_LE_GATT_DESCRIPTOR_VALUE_EXTENDED_PROPERTIES ExtendedProperties;
+
+            [FieldOffset(0)]
+            public BTH_LE_GATT_DESCRIPTOR_VALUE_CCCD Cccd;
+
+            [FieldOffset(0)]
+            public BTH_LE_GATT_DESCRIPTOR_VALUE_SCCD Sccd;
+
+            [FieldOffset(0)]
+            public BTH_LE_GATT_DESCRIPTOR_VALUE_FORMAT Format;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BTH_LE_GATT_DESCRIPTOR_VALUE
+        {
+            public const int Size = 4 + 20 + 48 + BTH_LE_GATT_CHARACTERISTIC_VALUE.Size;
+
+            public BTH_LE_GATT_DESCRIPTOR_TYPE DescriptorType;
+            public BTH_LE_UUID DescriptorUuid;
+            public BTH_LE_GATT_DESCRIPTOR_VALUE_PARAMS Params;
+            public BTH_LE_GATT_CHARACTERISTIC_VALUE Value;
+        }
+
+        public enum BTH_LE_GATT_EVENT_TYPE
+        {
+            CharacteristicValueChangedEvent
+        }
+
+        public delegate void BLUETOOTH_GATT_EVENT_CALLBACK(BTH_LE_GATT_EVENT_TYPE eventType,
+                                                           BLUETOOTH_GATT_VALUE_CHANGED_EVENT* eventParameter,
+                                                           IntPtr context);
+
+        [Flags]
+        public enum BLUETOOTH_GATT_FLAGS : uint
+        {
+            ENCRYPTED = 1,
+            AUTHENTICATED = 2,
+            FORCE_READ_FROM_DEVICE = 4,
+            FORCE_READ_FROM_CACHE = 8,
+            SIGNED_WRITE = 16,
+            WRITE_WITHOUT_RESPONSE = 32
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BLUETOOTH_FIND_RADIO_PARAMS
+        {
+            public int Size;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BLUETOOTH_DEVICE_SEARCH_PARAMS
+        {
+            public int dwSize;
+            public int fReturnAuthenticated;
+            public int fReturnRemembered;
+            public int fReturnUnknown;
+            public int fReturnConnected;
+            public int fIssueInquiry;
+            public byte cTimeoutMultiplier;
+            public IntPtr hRadio;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BLUETOOTH_DEVICE_INFO
+        {
+            public int dwSize;
+            public BLUETOOTH_ADDRESS Address;
+            public uint ulClassOfDevice;
+            public int fConnected;
+            public int fRemembered;
+            public int fAuthenticated;
+            public SYSTEMTIME stLastSeen;
+            public SYSTEMTIME stLastUsed;
+            public fixed char szName[BLUETOOTH_MAX_NAME_SIZE];
+        }
+
+        [StructLayout(LayoutKind.Explicit, Size = 8)]
+        public struct BLUETOOTH_ADDRESS
+        {
+            [FieldOffset(0)]
+            public ulong Addr;
+
+            [FieldOffset(0)]
+            public fixed byte Bytes[6];
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BTH_DEVICE_INFO
+        {
+            public BDIF flags;
+            public ulong address;
+            public uint classOfDevice;
+            public fixed byte name[BLUETOOTH_MAX_NAME_SIZE];
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BTH_HCI_EVENT_INFO
+        {
+            public ulong bthAddress;
+            public byte connectionType;
+            public byte connected;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BTH_RADIO_IN_RANGE
+        {
+            public BTH_DEVICE_INFO deviceInfo;
+            public BDIF previousDeviceFlags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SYSTEMTIME
+        {
+            public ushort wYear, wMonth, wDayOfWeek, wDay;
+            public ushort wHour, wMinute, wSecond, wMilliseconds;
+        }
+
+        [Flags]
+        public enum BDIF : uint
+        {
+            Address          = 0x0000001,
+            Cod              = 0x0000002,
+            Name             = 0x0000004,
+            Paired           = 0x0000008,
+            Personal         = 0x0000010,
+            Connected        = 0x0000020,
+            ShortName        = 0x0000040,
+            Visible          = 0x0000080,
+            SspSupported     = 0x0000100,
+            SspPaired        = 0x0000200,
+            SspMitmProtected = 0x0000400,
+            Rssi             = 0x0001000,
+            Eir              = 0x0002000,
+            Br               = 0x0004000, // Windows 8
+            Le               = 0x0008000, // Windows 8
+            LePaired         = 0x0010000, // Windows 8
+            LePersonal       = 0x0020000, // Windows 8
+            LeMitmProtected  = 0x0040000, // Windows 8
+            LePrivacyEnabled = 0x0080000, // Windows 8
+            LeRandomAddress  = 0x0100000, // Windows 8
+            LeDiscoverable   = 0x0200000, // Windows 10
+            LeName           = 0x0400000, // Windows 10
+            Unknown1         = 0x1000000, // ???
+            Unknown2         = 0x2000000  // ???
+        }
+
+        public static IntPtr CreateAutoResetEventOrThrow()
+        {
+            return CreateResetEventOrThrow(false);
+        }
+
         public static IntPtr CreateManualResetEventOrThrow()
         {
-            IntPtr @event = CreateEvent(IntPtr.Zero, true, false, IntPtr.Zero);
+            return CreateResetEventOrThrow(true);
+        }
+
+        static IntPtr CreateResetEventOrThrow(bool manualReset)
+        {
+            IntPtr @event = CreateEvent(IntPtr.Zero, manualReset, false, IntPtr.Zero);
             if (@event == IntPtr.Zero) { throw new IOException("Event creation failed."); }
             return @event;
         }
@@ -528,8 +905,7 @@ namespace HidSharp.Platform.Windows
 
                 IntPtr* handles = stackalloc IntPtr[2];
                 handles[0] = eventHandle; handles[1] = closeEventHandle;
-                uint timeout = eventTimeout < 0 ? ~(uint)0 : (uint)eventTimeout;
-                uint waitResult = WaitForMultipleObjects(2, handles, false, timeout);
+                uint waitResult = WaitForMultipleObjects(2, handles, false, WaitForMultipleObjectsGetTimeout(eventTimeout));
                 switch (waitResult)
                 {
                     case WAIT_OBJECT_0: break;
@@ -545,7 +921,7 @@ namespace HidSharp.Platform.Windows
                 {
                     if (closed)
                     {
-                        throw new ObjectDisposedException("Closed.", (Exception)null);
+                        throw CommonException.CreateClosedException();
                     }
 
                     if (win32Error == ERROR_OPERATION_ABORTED)
@@ -591,6 +967,9 @@ namespace HidSharp.Platform.Windows
         [DllImport("cfgmgr32.dll")]
         public static extern int CM_Get_Sibling(out uint siblingDevInst, uint devInst, int flags = 0);
 
+        [DllImport("cfgmgr32.dll")]
+        public static extern int CM_Get_DevNode_Status(out uint status, out uint problemNumber, uint devInst, int flags = 0);
+
         [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode)]
         public static extern int CM_Locate_DevNode(out uint devInst, string deviceID, int flags = 0);
 
@@ -619,14 +998,20 @@ namespace HidSharp.Platform.Windows
         public static extern int GetMessage(out MSG message, IntPtr window, uint messageMin, uint messageMax);
 
         [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool TranslateMessage(ref MSG message);
 
         [DllImport("user32.dll")]
         public static extern IntPtr DispatchMessage(ref MSG message);
 
         public const int DBT_DEVTYP_DEVICEINTERFACE = 5;
+        public const int DEVICE_NOTIFY_ALL_INTERFACE_CLASSES = 4;
         [DllImport("user32.dll")]
-        public static extern IntPtr RegisterDeviceNotification(IntPtr recipient, ref DEV_BROADCAST_DEVICEINTERFACE notificationFilter, uint flags);
+        public static extern IntPtr RegisterDeviceNotification(IntPtr recipient, ref DEV_BROADCAST_DEVICEINTERFACE notificationFilter, int flags);
+
+        public const int DBT_DEVTYP_HANDLE = 6;
+        [DllImport("user32.dll")]
+        public static extern IntPtr RegisterDeviceNotification(IntPtr recipient, ref DEV_BROADCAST_HANDLE notificationFilter, int flags);
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -710,10 +1095,20 @@ namespace HidSharp.Platform.Windows
         public unsafe static extern int HidP_GetValueCaps(HIDP_REPORT_TYPE reportType, [Out] HIDP_DATA_CAPS[] values, ref ushort count, IntPtr preparsed);
 
         [DllImport("advapi32.dll", SetLastError = true)]
+        public static extern int RegOpenKeyEx(IntPtr parentHandle, string subkey, uint options, uint access, out IntPtr handle);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public static extern int RegNotifyChangeKeyValue(IntPtr handle, bool watchSubtree, uint notifyFilter, IntPtr @event, bool asynchronous);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
         public static extern int RegCloseKey(IntPtr handle);
 
         [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern int RegQueryValueEx(IntPtr handle, string valueName, uint reserved, IntPtr type, char[] buffer, ref int lengthInBytes);
+
+        [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        public static extern HDEVINFO SetupDiGetClassDevs
+            (IntPtr classGuid, string enumerator, IntPtr hwndParent, DIGCF flags);
 
         [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern HDEVINFO SetupDiGetClassDevs
@@ -767,6 +1162,20 @@ namespace HidSharp.Platform.Windows
             }
         }
 
+        public static bool SetupDiGetDeviceInterfaceDevicePath(HDEVINFO deviceInfoSet,
+            ref SP_DEVICE_INTERFACE_DATA deviceInterfaceData,
+            out string devicePath)
+        {
+            NativeMethods.SP_DEVICE_INTERFACE_DETAIL_DATA didetail;
+
+            if (NativeMethods.SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, out didetail))
+            {
+                devicePath = didetail.DevicePath; return true;
+            }
+
+            devicePath = null; return false;
+        }
+
         [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SetupDiGetDeviceRegistryProperty(HDEVINFO deviceInfoSet,
@@ -791,6 +1200,24 @@ namespace HidSharp.Platform.Windows
             return value != null;
         }
 
+        public static bool TryGetSerialPortFriendlyName(HDEVINFO deviceInfoSet, ref SP_DEVINFO_DATA deviceInfoData, out string friendlyName)
+        {
+            if (NativeMethods.TryGetDeviceRegistryProperty(deviceInfoSet, ref deviceInfoData, NativeMethods.SPDRP_FRIENDLYNAME, out friendlyName))
+            {
+
+            }
+            else if (NativeMethods.TryGetDeviceRegistryProperty(deviceInfoSet, ref deviceInfoData, NativeMethods.SPDRP_DEVICEDESC, out friendlyName))
+            {
+
+            }
+            else
+            {
+                friendlyName = null;
+            }
+
+            return !string.IsNullOrEmpty(friendlyName);
+        }
+
         public static bool TryGetSerialPortName(HDEVINFO deviceInfoSet, ref SP_DEVINFO_DATA deviceInfoData, out string portName)
         {
             portName = null;
@@ -808,7 +1235,12 @@ namespace HidSharp.Platform.Windows
                         string newPortName = NativeMethods.NTString(portNameChars);
                         if (newPortName.Length >= 4 && newPortName.StartsWith("COM"))
                         {
-                            portName = newPortName;
+                            int newPortNumber;
+                            if (int.TryParse(newPortName.Substring(3), NumberStyles.Integer, CultureInfo.InvariantCulture, out newPortNumber) &&
+                                newPortName == "COM" + newPortNumber.ToString(CultureInfo.InvariantCulture))
+                            {
+                                portName = newPortName;
+                            }
                         }
                     }
                 }
@@ -819,6 +1251,67 @@ namespace HidSharp.Platform.Windows
             }
 
             return portName != null;
+        }
+
+        public delegate void EnumerateDeviceInterfacesCallback(NativeMethods.HDEVINFO deviceInfoSet,
+                                               NativeMethods.SP_DEVINFO_DATA deviceInfoData,
+                                               NativeMethods.SP_DEVICE_INTERFACE_DATA deviceInterfaceData,
+                                               string deviceID, string devicePath);
+        public static void EnumerateDeviceInterfaces(Guid guid, EnumerateDeviceInterfacesCallback callback)
+        {
+            EnumerateDeviceInterfaces(guid, null, callback);
+        }
+
+        public static void EnumerateDeviceInterfaces(Guid guid, string deviceIDToFilterTo, EnumerateDeviceInterfacesCallback callback)
+        {
+            EnumerateDevicesCore(NativeMethods.SetupDiGetClassDevs(guid, deviceIDToFilterTo, IntPtr.Zero, NativeMethods.DIGCF.DeviceInterface | NativeMethods.DIGCF.Present),
+                (devInfo, dvi, deviceID) =>
+                {
+                    NativeMethods.SP_DEVICE_INTERFACE_DATA did = new NativeMethods.SP_DEVICE_INTERFACE_DATA();
+                    did.Size = Marshal.SizeOf(did);
+
+                    for (int i = 0; NativeMethods.SetupDiEnumDeviceInterfaces(devInfo, ref dvi, guid, i, ref did); i++)
+                    {
+                        string devicePath;
+                        if (NativeMethods.SetupDiGetDeviceInterfaceDevicePath(devInfo, ref did, out devicePath))
+                        {
+                            callback(devInfo, dvi, did, deviceID, devicePath);
+                        }
+                    }
+                });
+        }
+
+
+        public delegate void EnumerateDevicesCallback(NativeMethods.HDEVINFO deviceInfoSet,
+                                               NativeMethods.SP_DEVINFO_DATA deviceInfoData,
+                                               string deviceID);
+        public static void EnumerateDevices(Guid guid, EnumerateDevicesCallback callback)
+        {
+            EnumerateDevicesCore(NativeMethods.SetupDiGetClassDevs(guid, null, IntPtr.Zero, NativeMethods.DIGCF.Present), callback);
+        }
+
+        static void EnumerateDevicesCore(NativeMethods.HDEVINFO devInfo, EnumerateDevicesCallback callback)
+        {
+            if (devInfo.IsValid)
+            {
+                try
+                {
+                    NativeMethods.SP_DEVINFO_DATA dvi = new NativeMethods.SP_DEVINFO_DATA();
+                    dvi.Size = Marshal.SizeOf(dvi);
+
+                    for (int j = 0; NativeMethods.SetupDiEnumDeviceInfo(devInfo, j, ref dvi); j++)
+                    {
+                        string deviceID;
+                        if (0 != NativeMethods.CM_Get_Device_ID(dvi.DevInst, out deviceID)) { continue; }
+
+                        callback(devInfo, dvi, deviceID);
+                    }
+                }
+                finally
+                {
+                    NativeMethods.SetupDiDestroyDeviceInfoList(devInfo);
+                }
+            }
         }
 
         [DllImport("setupapi.dll", SetLastError = true)]
@@ -931,5 +1424,177 @@ namespace HidSharp.Platform.Windows
         [DllImport("kernel32.dll", SetLastError = true)]
         public unsafe static extern uint WaitForMultipleObjects(uint count, IntPtr* handles,
             [MarshalAs(UnmanagedType.Bool)] bool waitAll, uint milliseconds);
+
+        public static uint WaitForMultipleObjectsGetTimeout(int eventTimeout)
+        {
+            return eventTimeout < 0 ? ~(uint)0 : (uint)eventTimeout;
+        }
+
+        [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+        public static extern int BluetoothGATTGetServices(IntPtr handle,
+                                                          ushort allocatedCount, [Out] BTH_LE_GATT_SERVICE[] services,
+                                                          out ushort returnedCount,
+                                                          uint flags = 0);
+
+
+        public static NativeMethods.BTH_LE_GATT_SERVICE[] BluetoothGATTGetServices(IntPtr handle)
+        {
+            int error;
+
+            ushort allocated;
+            error = NativeMethods.BluetoothGATTGetServices(handle, 0, null, out allocated);
+            if (error != NativeMethods.ERROR_MORE_DATA) { return null; }
+
+            var services = new NativeMethods.BTH_LE_GATT_SERVICE[allocated];
+            if (allocated > 0)
+            {
+                ushort returned;
+                error = NativeMethods.BluetoothGATTGetServices(handle, allocated, services, out returned);
+                if (error != 0) { return null; }
+                if (allocated != returned) { return null; }
+            }
+
+            return services;
+        }
+
+        [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+        public static extern int BluetoothGATTGetCharacteristics(IntPtr handle,
+                                                                 [In] ref BTH_LE_GATT_SERVICE service,
+                                                                 ushort allocatedCount, [Out] BTH_LE_GATT_CHARACTERISTIC[] characteristics,
+                                                                 out ushort returnedCount,
+                                                                 uint flags = 0);
+
+        public static BTH_LE_GATT_CHARACTERISTIC[] BluetoothGATTGetCharacteristics(IntPtr handle,
+                                                                                   ref BTH_LE_GATT_SERVICE service)
+        {
+            int error;
+
+            ushort allocated;
+            error = NativeMethods.BluetoothGATTGetCharacteristics(handle, ref service,  0, null, out allocated);
+            if (error == NativeMethods.ERROR_NOT_FOUND) { allocated = 0; } else
+            if (error != NativeMethods.ERROR_MORE_DATA) { return null; }
+
+            var characteristics = new NativeMethods.BTH_LE_GATT_CHARACTERISTIC[allocated];
+            if (allocated > 0)
+            {
+                ushort returned;
+                error = NativeMethods.BluetoothGATTGetCharacteristics(handle, ref service, allocated, characteristics, out returned);
+                if (error != 0) { return null; }
+                if (allocated != returned) { return null; }
+            }
+
+            return characteristics;
+        }
+
+        [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+        public static extern int BluetoothGATTGetDescriptors(IntPtr handle,
+                                                             [In] ref BTH_LE_GATT_CHARACTERISTIC characteristic,
+                                                             ushort allocatedCount, [Out] BTH_LE_GATT_DESCRIPTOR[] descriptors,
+                                                             out ushort returnedCount,
+                                                             uint flags = 0);
+
+        public static BTH_LE_GATT_DESCRIPTOR[] BluetoothGATTGetDescriptors(IntPtr handle,
+                                                                           ref BTH_LE_GATT_CHARACTERISTIC characteristic)
+        {
+            int error;
+
+            ushort allocated;
+            error = NativeMethods.BluetoothGATTGetDescriptors(handle, ref characteristic, 0, null, out allocated);
+            if (error == NativeMethods.ERROR_NOT_FOUND) { allocated = 0; } else
+            if (error != NativeMethods.ERROR_MORE_DATA) { return null; }
+
+            var descriptors = new NativeMethods.BTH_LE_GATT_DESCRIPTOR[allocated];
+            if (allocated > 0)
+            {
+                ushort returned;
+                error = NativeMethods.BluetoothGATTGetDescriptors(handle, ref characteristic, allocated, descriptors, out returned);
+                if (error != 0) { return null; }
+                if (allocated != returned) { return null; }
+            }
+
+            return descriptors;
+        }
+
+        [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+        public static extern int BluetoothGATTGetCharacteristicValue(IntPtr handle,
+                                                                     [In] ref BTH_LE_GATT_CHARACTERISTIC characteristic,
+                                                                     uint valueDataSize,
+                                                                     BTH_LE_GATT_CHARACTERISTIC_VALUE* value,
+                                                                     out ushort valueSizeRequired,
+                                                                     BLUETOOTH_GATT_FLAGS flags);
+
+        [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+        public static extern int BluetoothGATTSetCharacteristicValue(IntPtr handle,
+                                                                     [In] ref BTH_LE_GATT_CHARACTERISTIC characteristic,
+                                                                     BTH_LE_GATT_CHARACTERISTIC_VALUE* value,
+                                                                     ulong reliableWriteContext,
+                                                                     BLUETOOTH_GATT_FLAGS flags);
+
+        [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+        public static extern int BluetoothGATTGetDescriptorValue(IntPtr handle,
+                                                                 [In] ref BTH_LE_GATT_DESCRIPTOR descriptor,
+                                                                 uint valueDataSize,
+                                                                 BTH_LE_GATT_DESCRIPTOR_VALUE* value,
+                                                                 out ushort valueSizeRequired,
+                                                                 BLUETOOTH_GATT_FLAGS flags);
+
+        [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+        public static extern int BluetoothGATTSetDescriptorValue(IntPtr handle,
+                                                                 [In] ref BTH_LE_GATT_DESCRIPTOR descriptor,
+                                                                 BTH_LE_GATT_DESCRIPTOR_VALUE* value,
+                                                                 BLUETOOTH_GATT_FLAGS flags);
+
+        [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+        public static extern int BluetoothGATTRegisterEvent(IntPtr handle,
+                                                            BTH_LE_GATT_EVENT_TYPE eventType,
+                                                            BLUETOOTH_GATT_VALUE_CHANGED_EVENT_REGISTRATION* eventParameter,
+                                                            BLUETOOTH_GATT_EVENT_CALLBACK callback,
+                                                            IntPtr context,
+                                                            out IntPtr eventHandle,
+                                                            int flags = 0);
+
+        [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+        public static extern int BluetoothGATTUnregisterEvent(IntPtr eventHandle, int flags = 0);
+
+        public static bool TryOpenToGetInfo(string path, Func<IntPtr, bool> action)
+        {
+            var handle = NativeMethods.CreateFileFromDevice(path, NativeMethods.EFileAccess.None, NativeMethods.EFileShare.Read | NativeMethods.EFileShare.Write);
+            if (handle == (IntPtr)(-1)) { return false; }
+
+            try
+            {
+                return action(handle);
+            }
+            catch (Exception e)
+            {
+                HidSharpDiagnostics.Trace("CreateFileFromDevice failed: {0}", e);
+            }
+            finally
+            {
+                NativeMethods.CloseHandle(handle);
+            }
+
+            return false;
+        }
+
+        [DllImport("bthprops.cpl", SetLastError = true)]
+        public static extern IntPtr BluetoothFindFirstRadio(ref BLUETOOTH_FIND_RADIO_PARAMS @params, out IntPtr radioHandle);
+
+        [DllImport("bthprops.cpl", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool BluetoothFindNextRadio(IntPtr searchHandle, out IntPtr radioHandle);
+
+        [DllImport("bthprops.cpl", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool BluetoothFindRadioClose(IntPtr searchHandle);
+
+        [DllImport("bthprops.cpl", SetLastError = true)]
+        public static extern IntPtr BluetoothFindFirstDevice(ref BLUETOOTH_DEVICE_SEARCH_PARAMS @params, ref BLUETOOTH_DEVICE_INFO info);
+
+        [DllImport("bthprops.cpl", SetLastError = true)]
+        public static extern bool BluetoothFindNextDevice(IntPtr searchHandle, ref BLUETOOTH_DEVICE_INFO info);
+
+        [DllImport("bthprops.cpl", SetLastError = true)]
+        public static extern bool BluetoothFindDeviceClose(IntPtr searchHandle);
     }
 }

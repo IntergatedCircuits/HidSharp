@@ -32,7 +32,8 @@ namespace HidSharp
         protected HidStream(HidDevice device)
             : base(device)
         {
-
+            ReadTimeout = 3000;
+            WriteTimeout = 3000;
         }
 
         /// <exclude />

@@ -28,7 +28,7 @@ namespace HidSharp.Platform.Linux
         NativeMethods.termios _oldSettings;
         NativeMethods.termios _newSettings;
 
-        SerialSettings _ser; 
+        SerialSettings _ser = SerialSettings.Default;
         bool _settingsChanged = true;
         int _handle;
 
@@ -81,6 +81,7 @@ namespace HidSharp.Platform.Linux
             NativeMethods.cfmakeraw(ref _newSettings);
             _handle = handle;
             InitSettings();
+            UpdateSettings();
         }
 
         protected override void Dispose(bool disposing)
@@ -164,6 +165,7 @@ namespace HidSharp.Platform.Linux
 
                         int readCount = checked((int)NativeMethods.retry(() => NativeMethods.read(handle, bufferPtr, (UIntPtr)bytesToRead)));
                         if (readCount <= 0 || readCount > bytesToRead) { throw new IOException("Read failed."); }
+
                         return readCount;
                     }
                 }
@@ -206,11 +208,11 @@ namespace HidSharp.Platform.Linux
 
         unsafe void InitSettings()
         {
-            long iflag = (long)_newSettings.c_iflag;
+            uint iflag = _newSettings.c_iflag;
             iflag = 0; // TODO: Be more specific. I don't want anything listed in the header files, though.
-            _newSettings.c_iflag = (uint)iflag;
+            _newSettings.c_iflag = iflag;
 
-            long cflag = (long)_newSettings.c_cflag;
+            uint cflag = _newSettings.c_cflag;
             cflag &= ~NativeMethods.CSTOPB;
             cflag &= ~NativeMethods.CSIZE;
             cflag &= ~NativeMethods.PARENB;
@@ -219,11 +221,11 @@ namespace HidSharp.Platform.Linux
             cflag |= NativeMethods.CREAD;
             cflag |= NativeMethods.CLOCAL;
             cflag &= ~NativeMethods.CRTSCTS;
-            _newSettings.c_cflag = (uint)cflag;
+            _newSettings.c_cflag = cflag;
 
-            long oflag = (long)_newSettings.c_oflag;
+            uint oflag = _newSettings.c_oflag;
             oflag &= ~NativeMethods.OPOST;
-            _newSettings.c_oflag = (uint)oflag;
+            _newSettings.c_oflag = oflag;
 
             fixed (byte* cc = _newSettings.c_cc) { cc[NativeMethods.VMIN] = 1; cc[NativeMethods.VTIME] = 0; }
         }
@@ -264,9 +266,9 @@ namespace HidSharp.Platform.Linux
 
                         ret = NativeMethods.retry(() => NativeMethods.tcflush(handle, NativeMethods.TCIFLUSH));
                         if (ret < 0) { throw new IOException("tcflush failed."); }
-                    }
 
-                    _settingsChanged = false;
+                        _settingsChanged = false;
+                    }
                 }
             }
         }

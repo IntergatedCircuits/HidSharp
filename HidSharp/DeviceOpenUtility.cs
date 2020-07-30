@@ -21,6 +21,7 @@ using System.Text;
 using System.Threading;
 using HidSharp.Platform;
 using HidSharp.Platform.SystemEvents;
+using HidSharp.Utility;
 
 namespace HidSharp
 {
@@ -45,12 +46,12 @@ namespace HidSharp
         int _timeoutIfInterruptible;
         int _timeoutIfTransient;
 
-        public DeviceOpenUtility(Device device, OpenConfiguration openConfig)
+        public DeviceOpenUtility(Device device, string streamPath, OpenConfiguration openConfig)
         {
             _device = device;
 
             _syncRoot = new object();
-            _resourcePrefix = GetResourcePrefix(device.DevicePath);
+            _resourcePrefix = GetResourcePrefix(streamPath);
 
             _priority = (OpenPriority)openConfig.GetOption(OpenOption.Priority);
             _interruptible = (bool)openConfig.GetOption(OpenOption.Interruptible);
@@ -58,8 +59,8 @@ namespace HidSharp
             _timeoutIfInterruptible = (int)openConfig.GetOption(OpenOption.TimeoutIfInterruptible);
             _timeoutIfTransient = (int)openConfig.GetOption(OpenOption.TimeoutIfTransient);
 
-            Debug.WriteLine(string.Format("** HIDSharp is opening a device. Our priority is {0}, our interruptible state is {1}, and our transient state is {2}.",
-                            _priority, _interruptible, _transient));
+            HidSharpDiagnostics.Trace("Opening a device. Our priority is {0}, our interruptible state is {1}, and our transient state is {2}.",
+                                      _priority, _interruptible, _transient);
         }
 
         public void Open()
@@ -132,12 +133,12 @@ namespace HidSharp
                             if (lockIsTransient)
                             {
                                 timeout = Math.Max(0, _timeoutIfTransient);
-                                Debug.WriteLine(string.Format("** HIDSharp failed to open the device. Luckily, it is in use by a transient process. We will wait {0} ms.", timeout));
+                                HidSharpDiagnostics.Trace("Failed to open the device. Luckily, it is in use by a transient process. We will wait {0} ms.", timeout);
                             }
                             else if (lockIsInterruptible)
                             {
                                 timeout = Math.Max(0, _timeoutIfInterruptible);
-                                Debug.WriteLine(string.Format("** HIDSharp failed to open the device. Luckily, it is in use by an interruptible process. We will wait {0} ms.", timeout));
+                                HidSharpDiagnostics.Trace("Failed to open the device. Luckily, it is in use by an interruptible process. We will wait {0} ms.", timeout);
                             }
                             else
                             {
@@ -146,7 +147,7 @@ namespace HidSharp
 
                             if (!exclusiveMutex.TryLock(timeout, out exclusiveLock))
                             {
-                                throw DeviceException.CreateIOException(_device, "The device is in use.", unchecked((int)0x80070020)); // ERROR_SHARING_VIOLATION;
+                                throw DeviceException.CreateIOException(_device, "The device is in use.", Utility.HResult.SharingViolation);
                             }
                         }
                     }
@@ -175,9 +176,8 @@ namespace HidSharp
                     var handles = new WaitHandle[] { _closeEvent, exclusiveEvent.WaitHandle };
                     Exception ex = null;
 
-                    Debug.WriteLine(string.Format("** HIDSharp started its sharing monitor thread ({0}).",
-                                                  Thread.CurrentThread.ManagedThreadId
-                                                  ));
+                    HidSharpDiagnostics.Trace("Started the sharing monitor thread ({0}).",
+                                              Thread.CurrentThread.ManagedThreadId);
                     while (true)
                     {
                         try
@@ -194,9 +194,8 @@ namespace HidSharp
                             // Okay. We received the request. Let's check for request priorities higher than ours.
                             exclusiveEvent.Reset();
 
-                            Debug.WriteLine(string.Format("** HIDSharp received an interrupt request ({0}).",
-                                                          Thread.CurrentThread.ManagedThreadId
-                                                          ));
+                            HidSharpDiagnostics.Trace("Received an interrupt request ({0}).",
+                                                      Thread.CurrentThread.ManagedThreadId);
 
                             if (em.MutexMayExist(GetResourceNameForPriorityRequest()))
                             {
@@ -209,10 +208,9 @@ namespace HidSharp
                         }
                     }
 
-                    Debug.WriteLine(string.Format("** HIDSharp exited its sharing monitor thread ({0}).{1}",
-                                                  Thread.CurrentThread.ManagedThreadId,
-                                                  (ex != null ? " " + ex.ToString() : "")
-                                                  ));
+                    HidSharpDiagnostics.Trace("Exited its sharing monitor thread ({0}).{1}",
+                                              Thread.CurrentThread.ManagedThreadId,
+                                              (ex != null ? " " + ex.ToString() : ""));
                 }
             }
             finally

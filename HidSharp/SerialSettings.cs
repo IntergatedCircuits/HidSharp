@@ -21,6 +21,11 @@ namespace HidSharp
 {
     struct SerialSettings
     {
+        public static readonly SerialSettings Default = new SerialSettings()
+        {
+            BaudRate = 9600, DataBits = 8, Parity = SerialParity.None, StopBits = 1
+        };
+
         public int BaudRate;
         public int DataBits;
         public SerialParity Parity;
@@ -33,6 +38,7 @@ namespace HidSharp
             lock (@lock)
             {
                 if (BaudRate == baudRate) { return; }
+//Console.WriteLine(string.Format("Baud {0} -> {1}", BaudRate, baudRate));
                 BaudRate = baudRate; settingsChanged = true;
             }
         }
@@ -44,6 +50,7 @@ namespace HidSharp
             lock (@lock)
             {
                 if (DataBits == dataBits) { return; }
+//Console.WriteLine(string.Format("Data Bits {0} -> {1}", DataBits, dataBits));
                 DataBits = dataBits; settingsChanged = true;
             }
         }
@@ -53,6 +60,7 @@ namespace HidSharp
             lock (@lock)
             {
                 if (Parity == parity) { return; }
+//Console.WriteLine(string.Format("Parity {0} -> {1}", Parity, parity));
                 Parity = parity; settingsChanged = true;
             }
         }
@@ -64,6 +72,7 @@ namespace HidSharp
             lock (@lock)
             {
                 if (StopBits == stopBits) { return; }
+//Console.WriteLine(string.Format("Stop Bits {0} -> {1}", StopBits, stopBits));
                 StopBits = stopBits; settingsChanged = true;
             }
         }

@@ -15,6 +15,7 @@
    under the License. */
 #endregion
 
+using System;
 using System.Collections.Generic;
 
 namespace HidSharp
@@ -22,7 +23,7 @@ namespace HidSharp
     /// <summary>
     /// Describes all options for opening a device stream.
     /// </summary>
-    public class OpenConfiguration
+    public class OpenConfiguration : ICloneable
     {
         Dictionary<OpenOption, object> _options;
 
@@ -32,6 +33,21 @@ namespace HidSharp
         public OpenConfiguration()
         {
             _options = new Dictionary<OpenOption, object>();
+        }
+
+        OpenConfiguration(Dictionary<OpenOption, object> options)
+        {
+            _options = new Dictionary<OpenOption, object>(options);
+        }
+
+        public OpenConfiguration Clone()
+        {
+            return new OpenConfiguration(_options);
+        }
+
+        object ICloneable.Clone()
+        {
+            return Clone();
         }
 
         /// <summary>

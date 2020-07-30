@@ -103,7 +103,6 @@ namespace HidSharp.Platform.Linux
 		
         protected override void Dispose(bool disposing)
         {
-            base.Dispose(disposing);
 			if (!HandleClose()) { return; }
 			
             _shutdown = true;
@@ -114,6 +113,8 @@ namespace HidSharp.Platform.Linux
             try { _writeThread.Join(); } catch { }
 
 			HandleRelease();
+
+            base.Dispose(disposing);
 		}
 		
 		internal override void HandleFree()

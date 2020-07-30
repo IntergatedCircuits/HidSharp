@@ -77,7 +77,7 @@ namespace HidSharp.Platform
                         }
 
                         timeout = GetTimeout(startTime, readTimeout);
-                        if (_closed != 0) { throw ExceptionForClosed(); }
+                        _rch.ThrowIfClosed();
                         if (!Monitor.Wait(queue, timeout)) { throw new TimeoutException(); }
                     }
                 }
@@ -124,14 +124,14 @@ namespace HidSharp.Platform
                                 }
 
                                 timeout = GetTimeout(startTime, writeTimeout);
-                                if (_closed != 0) { throw ExceptionForClosed(); }
+                                _rch.ThrowIfClosed();
                                 if (!Monitor.Wait(queue, timeout)) { throw new TimeoutException(); }
                             }
                         }
                         else
                         {
                             timeout = GetTimeout(startTime, writeTimeout);
-                            if (_closed != 0) { throw ExceptionForClosed(); }
+                            _rch.ThrowIfClosed();
                             if (!Monitor.Wait(queue, timeout)) { throw new TimeoutException(); }
                         }
                     }
@@ -156,50 +156,31 @@ namespace HidSharp.Platform
         }
 
         #region Reference Counting
-        int _opened, _closed;
-        int _refCount;
+        SysRefCountHelper _rch;
 
         internal void HandleInitAndOpen()
         {
-            _opened = 1; _refCount = 1;
+            _rch.HandleInitAndOpen();
         }
 
         internal bool HandleClose()
         {
-            return 0 == Interlocked.CompareExchange(ref _closed, 1, 0) && _opened != 0;
+            return _rch.HandleClose();
         }
 
         internal bool HandleAcquire()
         {
-            while (true)
-            {
-                int refCount = _refCount;
-                if (refCount == 0) { return false; }
-
-                if (refCount == Interlocked.CompareExchange
-                    (ref _refCount, refCount + 1, refCount))
-                {
-                    return true;
-                }
-            }
+            return _rch.HandleAcquire();
         }
 
         internal void HandleAcquireIfOpenOrFail()
         {
-            if (_closed != 0 || !HandleAcquire()) { throw ExceptionForClosed(); }
+            _rch.HandleAcquireIfOpenOrFail();
         }
 
         internal void HandleRelease()
         {
-            if (0 == Interlocked.Decrement(ref _refCount))
-            {
-                if (_opened != 0) { HandleFree(); }
-            }
-        }
-
-        static Exception ExceptionForClosed()
-        {
-            return new ObjectDisposedException("Closed.", (Exception)null);
+            if (_rch.HandleRelease()) { HandleFree(); }
         }
 
         internal abstract void HandleFree();

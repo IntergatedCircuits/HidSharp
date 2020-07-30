@@ -16,15 +16,23 @@
 #endregion
 
 using System;
-using System.Runtime.InteropServices;
+using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace HidSharp.Platform
 {
     sealed class Utf8Marshaler : ICustomMarshaler
     {
-        bool _allocated; // workaround for Mono bug 4722
+        [ThreadStatic]
+        static HashSet<IntPtr> _allocations; // Workaround for Mono bug 4722.
+
+        static HashSet<IntPtr> GetAllocations()
+        {
+            if (_allocations == null) { _allocations = new HashSet<IntPtr>(); }
+            return _allocations;
+        }
 
         public void CleanUpManagedData(object obj)
         {
@@ -33,8 +41,9 @@ namespace HidSharp.Platform
 
         public void CleanUpNativeData(IntPtr ptr)
         {
-			if (IntPtr.Zero == ptr || !_allocated) { return; }
-            Marshal.FreeHGlobal(ptr); _allocated = false;
+            var allocations = GetAllocations();
+			if (IntPtr.Zero == ptr || !allocations.Contains(ptr)) { return; }
+            Marshal.FreeHGlobal(ptr); allocations.Remove(ptr);
         }
 
         public int GetNativeDataSize()
@@ -51,7 +60,9 @@ namespace HidSharp.Platform
             IntPtr ptr = Marshal.AllocHGlobal(bytes.Length + 1);
             Marshal.Copy(bytes, 0, ptr, bytes.Length);
             Marshal.WriteByte(ptr, bytes.Length, 0);
-            _allocated = true; return ptr;
+
+            var allocations = GetAllocations();
+            allocations.Add(ptr); return ptr;
         }
 
         public object MarshalNativeToManaged(IntPtr ptr)

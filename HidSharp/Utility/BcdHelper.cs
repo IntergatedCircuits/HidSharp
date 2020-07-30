@@ -42,7 +42,7 @@ namespace HidSharp.Utility
         /// <returns>The device release number.</returns>
         public static Version ToVersion(int bcd)
         {
-            Throw.If.False(bcd >= ushort.MinValue || bcd <= ushort.MaxValue);
+            Throw.If.False(bcd >= ushort.MinValue && bcd <= ushort.MaxValue);
             return new Version(((bcd >> 12) & 0xf) * 10 + ((bcd >> 8) & 0xf), ((bcd >> 4) & 0xf) * 10 + (bcd & 0xf));
         }
     }

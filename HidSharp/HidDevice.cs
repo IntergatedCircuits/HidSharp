@@ -33,7 +33,7 @@ namespace HidSharp
         /// <inheritdoc/>
         public new HidStream Open()
         {
-            return (HidStream)base.Open(null);
+            return (HidStream)base.Open();
         }
 
         /// <inheritdoc/>

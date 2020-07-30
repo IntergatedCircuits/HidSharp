@@ -61,11 +61,12 @@ namespace HidSharp.Platform.Windows
 		
         protected override void Dispose(bool disposing)
         {
-            base.Dispose(disposing);
 			if (!HandleClose()) { return; }
 			
 			NativeMethods.SetEvent(_closeEventHandle);
 			HandleRelease();
+
+            base.Dispose(disposing);
 		}
 		
 		internal override void HandleFree()

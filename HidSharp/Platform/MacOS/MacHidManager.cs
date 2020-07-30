@@ -99,6 +99,11 @@ namespace HidSharp.Platform.MacOS
             return paths.Cast<object>().ToArray();
         }
 
+        protected override object[] GetBleDeviceKeys()
+        {
+            return new object[0];
+        }
+
         protected override object[] GetHidDeviceKeys()
         {
             return GetDeviceKeys("IOHIDDevice");
@@ -107,6 +112,11 @@ namespace HidSharp.Platform.MacOS
         protected override object[] GetSerialDeviceKeys()
         {
             return GetDeviceKeys("IOSerialBSDClient");
+        }
+
+        protected override bool TryCreateBleDevice(object key, out Device device)
+        {
+            throw new NotImplementedException();
         }
 
         protected override bool TryCreateHidDevice(object key, out Device device)

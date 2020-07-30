@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2018 James F. Bellinger <http://www.zer7.com/software/hidsharp>
+/* Copyright 2012-2013, 2016, 2018 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -17,20 +17,14 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Linq;
+using System.Text;
 using System.Threading;
 
 namespace HidSharp.Platform
 {
-    abstract class SysSerialStream : SerialStream
+    struct SysRefCountHelper
     {
-        protected SysSerialStream(SerialDevice device)
-            : base(device)
-        {
-
-        }
-
-        #region Reference Counting
         int _opened, _closed;
         int _refCount;
 
@@ -64,20 +58,24 @@ namespace HidSharp.Platform
             if (_closed != 0 || !HandleAcquire()) { throw ExceptionForClosed(); }
         }
 
-        internal void HandleRelease()
+        internal bool HandleRelease()
         {
             if (0 == Interlocked.Decrement(ref _refCount))
             {
-                if (_opened != 0) { HandleFree(); }
+                if (_opened != 0) { return true; }
             }
+
+            return false;
+        }
+
+        internal void ThrowIfClosed()
+        {
+            if (_closed != 0) { throw ExceptionForClosed(); }
         }
 
         static Exception ExceptionForClosed()
         {
             return CommonException.CreateClosedException();
         }
-
-        internal abstract void HandleFree();
-        #endregion
     }
 }

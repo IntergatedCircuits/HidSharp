@@ -28,7 +28,7 @@ namespace HidSharp.Platform.MacOS
         NativeMethods.termios _oldSettings;
         NativeMethods.termios _newSettings;
 
-        SerialSettings _ser;
+        SerialSettings _ser = SerialSettings.Default;
         bool _settingsChanged = true;
         int _handle;
 
@@ -81,6 +81,7 @@ namespace HidSharp.Platform.MacOS
             NativeMethods.cfmakeraw(ref _newSettings);
             _handle = handle;
             InitSettings();
+            UpdateSettings();
         }
 
         protected override void Dispose(bool disposing)
@@ -264,9 +265,9 @@ namespace HidSharp.Platform.MacOS
 
                         ret = NativeMethods.retry(() => NativeMethods.tcflush(handle, NativeMethods.TCIFLUSH));
                         if (ret < 0) { throw new IOException("tcflush failed."); }
-                    }
 
-                    _settingsChanged = false;
+                        _settingsChanged = false;
+                    }
                 }
             }
         }

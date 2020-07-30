@@ -17,6 +17,7 @@
 
 using System;
 using System.Diagnostics;
+using HidSharp.Utility;
 
 namespace HidSharp
 {
@@ -43,7 +44,8 @@ namespace HidSharp
             DeviceOpenUtility openUtility = null;
             if (exclusive)
             {
-                openUtility = new DeviceOpenUtility(this, openConfig);
+                string streamPath = GetStreamPath(openConfig);
+                openUtility = new DeviceOpenUtility(this, streamPath, openConfig);
                 openUtility.Open();
             }
 
@@ -57,7 +59,7 @@ namespace HidSharp
                     openUtility.InterruptRequested += (sender, e) =>
                         {
                             stream.OnInterruptRequested();
-                            Debug.WriteLine("** HIDSharp delivered an interrupt request.");
+                            HidSharpDiagnostics.Trace("Delivered an interrupt request.");
                         };
                 }
             }
@@ -71,6 +73,12 @@ namespace HidSharp
         }
 
         protected abstract DeviceStream OpenDeviceDirectly(OpenConfiguration openConfig);
+
+        // Used for exclusion... and also may be used inside OpenDeviceDirectly if desired.
+        protected virtual string GetStreamPath(OpenConfiguration openConfig)
+        {
+            return DevicePath;
+        }
 
         /// <summary>
         /// Tries to make a connection to the device.

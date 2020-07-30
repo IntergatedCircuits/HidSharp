@@ -19,9 +19,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace HidSharp.Platform.Windows
@@ -71,23 +69,7 @@ namespace HidSharp.Platform.Windows
 
         bool TryOpenToGetInfo(Func<IntPtr, bool> action)
         {
-            var handle = NativeMethods.CreateFileFromDevice(_path, NativeMethods.EFileAccess.None, NativeMethods.EFileShare.Read | NativeMethods.EFileShare.Write);
-            if (handle == (IntPtr)(-1)) { return false; }
-
-            try
-            {
-                return action(handle);
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e);
-            }
-            finally
-            {
-                NativeMethods.CloseHandle(handle);
-            }
-
-            return false;
+            return NativeMethods.TryOpenToGetInfo(_path, action);
         }
 
         protected override DeviceStream OpenDeviceDirectly(OpenConfiguration openConfig)
@@ -305,6 +287,7 @@ namespace HidSharp.Platform.Windows
             devInst = 0; return false;
         }
 
+        /*
         void GetDevicePaths(uint devInst, Guid guid, List<string> devicePaths)
         {
             string deviceID;
@@ -329,10 +312,10 @@ namespace HidSharp.Platform.Windows
 
                         for (int k = 0; NativeMethods.SetupDiEnumDeviceInterfaces(devInfo, ref dvi, guid, k, ref did); k++)
                         {
-                            NativeMethods.SP_DEVICE_INTERFACE_DETAIL_DATA didetail;
-                            if (NativeMethods.SetupDiGetDeviceInterfaceDetail(devInfo, ref did, out didetail))
+                            string devicePath;
+                            if (NativeMethods.SetupDiGetDeviceInterfaceDevicePath(devInfo, ref did, out devicePath))
                             {
-                                devicePaths.Add(didetail.DevicePath);
+                                devicePaths.Add(devicePath);
                             }
                         }
                     }
@@ -343,6 +326,7 @@ namespace HidSharp.Platform.Windows
                 }
             }
         }
+        */
 
         public override string[] GetSerialPorts()
         {
@@ -356,7 +340,19 @@ namespace HidSharp.Platform.Windows
                 {
                     do
                     {
-                        GetDevicePaths(devInst, NativeMethods.GuidForComPort, ports);
+                        string deviceID;
+                        if (0 == NativeMethods.CM_Get_Device_ID(devInst, out deviceID))
+                        {
+                            NativeMethods.EnumerateDeviceInterfaces(NativeMethods.GuidForComPort, deviceID, (deviceInfoSet, deviceInfoData, _, __, devicePath) =>
+                                {
+                                    string friendlyName, portName;
+                                    if (NativeMethods.TryGetSerialPortFriendlyName(deviceInfoSet, ref deviceInfoData, out friendlyName) &&
+                                        NativeMethods.TryGetSerialPortName(deviceInfoSet, ref deviceInfoData, out portName))
+                                    {
+                                        ports.Add(@"\\.\" + portName);
+                                    }
+                                });
+                        }
                     }
                     while (0 == NativeMethods.CM_Get_Sibling(out devInst, devInst));
                 }

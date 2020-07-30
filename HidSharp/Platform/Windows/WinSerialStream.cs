@@ -43,8 +43,8 @@ namespace HidSharp.Platform.Windows
                                                                NativeMethods.EFileShare.None);
             if (handle == (IntPtr)(-1))
             {
-                int win32Error = Marshal.GetLastWin32Error();
-                throw DeviceException.CreateIOException(Device, "Unable to open serial device (" + devicePath + ").", win32Error);
+                int hr = Marshal.GetHRForLastWin32Error();
+                throw DeviceException.CreateIOException(Device, "Unable to open serial device (" + devicePath + ").", hr);
             }
 
             var timeouts = new NativeMethods.COMMTIMEOUTS();
@@ -53,9 +53,9 @@ namespace HidSharp.Platform.Windows
             timeouts.ReadTotalTimeoutMultiplier = uint.MaxValue;
             if (!NativeMethods.SetCommTimeouts(handle, out timeouts))
             {
-                int win32Error = Marshal.GetLastWin32Error();
+                int hr = Marshal.GetHRForLastWin32Error();
                 NativeMethods.CloseHandle(handle);
-                throw DeviceException.CreateIOException(Device, "Unable to set serial timeouts.", win32Error);
+                throw DeviceException.CreateIOException(Device, "Unable to set serial timeouts.", hr);
             }
 
             _handle = handle;
@@ -70,11 +70,12 @@ namespace HidSharp.Platform.Windows
 
         protected override void Dispose(bool disposing)
         {
-            base.Dispose(disposing);
             if (!HandleClose()) { return; }
 
             NativeMethods.SetEvent(_closeEventHandle);
             HandleRelease();
+
+            base.Dispose(disposing);
         }
 
         internal override void HandleFree()
@@ -169,8 +170,8 @@ namespace HidSharp.Platform.Windows
                 dcb.DCBlength = Marshal.SizeOf(typeof(NativeMethods.DCB));
                 if (!NativeMethods.GetCommState(_handle, ref dcb))
                 {
-                    int win32Error = Marshal.GetLastWin32Error();
-                    throw DeviceException.CreateIOException(Device, "Failed to get serial state.", win32Error);
+                    int hr = Marshal.GetHRForLastWin32Error();
+                    throw DeviceException.CreateIOException(Device, "Failed to get serial state.", hr);
                 }
 
                 int baudRate = _ser.BaudRate;
@@ -185,15 +186,15 @@ namespace HidSharp.Platform.Windows
                 dcb.StopBits = stopBits == 2 ? NativeMethods.TWOSTOPBITS : NativeMethods.ONESTOPBIT;
                 if (!NativeMethods.SetCommState(_handle, ref dcb))
                 {
-                    int win32Error = Marshal.GetLastWin32Error();
-                    throw DeviceException.CreateIOException(Device, "Failed to set serial state.", win32Error);
+                    int hr = Marshal.GetHRForLastWin32Error();
+                    throw DeviceException.CreateIOException(Device, "Failed to set serial state.", hr);
                 }
 
                 var purgeFlags = NativeMethods.PURGE_RXABORT | NativeMethods.PURGE_RXCLEAR | NativeMethods.PURGE_TXABORT | NativeMethods.PURGE_TXCLEAR;
                 if (!NativeMethods.PurgeComm(_handle, purgeFlags))
                 {
-                    int win32Error = Marshal.GetLastWin32Error();
-                    throw DeviceException.CreateIOException(Device, "Failed to purge serial port.", win32Error);
+                    int hr = Marshal.GetHRForLastWin32Error();
+                    throw DeviceException.CreateIOException(Device, "Failed to purge serial port.", hr);
                 }
             }
         }

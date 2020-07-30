@@ -21,9 +21,21 @@ namespace HidSharp
 {
     sealed class LocalDeviceList : DeviceList
     {
+        /*
+        public override BleDiscovery BeginBleDiscovery()
+        {
+            return Platform.HidSelector.Instance.BeginBleDiscovery();
+        }
+        */
+
+        public override IEnumerable<Device> GetDevices(DeviceTypes types)
+        {
+            return Platform.HidSelector.Instance.GetDevices(types);
+        }
+
         public override IEnumerable<Device> GetAllDevices()
         {
-            return Platform.HidSelector.Instance.GetDevices();
+            return GetDevices(DeviceTypes.Hid | DeviceTypes.Serial | DeviceTypes.Ble);
         }
 
         public override string ToString()

@@ -34,6 +34,13 @@ namespace HidSharp
             _refCounts = new Dictionary<Device, int>();
         }
 
+        /*
+        public override BleDiscovery BeginBleDiscovery()
+        {
+            throw new NotImplementedException();
+        }
+        */
+
         public void Add(Device device)
         {
             Throw.If.Null(device, "device");

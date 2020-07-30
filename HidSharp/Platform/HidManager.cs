@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012-2018 James F. Bellinger <http://www.zer7.com/software/hidsharp>
+/* Copyright 2012-2019 James F. Bellinger <http://www.zer7.com/software/hidsharp>
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -17,55 +17,46 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using HidSharp.Experimental;
+using HidSharp.Utility;
 
 namespace HidSharp.Platform
 {
     abstract class HidManager
     {
-        enum KeyType
+        sealed class DeviceTypeInfo
         {
-            Hid,
-            Serial
+            public delegate object[] GetDeviceKeysCallbackType();
+            public delegate bool TryCreateDeviceCallbackType(object key, out Device device);
+
+            public object DevicesLock = new object();
+            public Dictionary<object, Device> DeviceList = new Dictionary<object, Device>();
+            public GetDeviceKeysCallbackType GetDeviceKeysCallback;
+            public TryCreateDeviceCallbackType TryCreateDeviceCallback;
         }
-        struct TypedKey : IEquatable<TypedKey>
-        {
-            public override bool Equals(object obj)
-            {
-                return obj is TypedKey && Equals((TypedKey)obj);
-            }
-
-            public bool Equals(TypedKey other)
-            {
-                return Type == other.Type && object.Equals(Key, other.Key);
-            }
-
-            public override int GetHashCode()
-            {
-                return Key.GetHashCode();
-            }
-
-            public KeyType Type
-            {
-                get;
-                set;
-            }
-
-            public object Key
-            {
-                get;
-                set;
-            }
-        }
-        Dictionary<TypedKey, Device> _deviceList;
-        object _getDevicesLock;
+        DeviceTypeInfo _ble, _hid, _serial;
 
         protected HidManager()
         {
-            _deviceList = new Dictionary<TypedKey, Device>();
-            _getDevicesLock = new object();
+            _ble = new DeviceTypeInfo()
+            {
+                GetDeviceKeysCallback = GetBleDeviceKeys,
+                TryCreateDeviceCallback = TryCreateBleDevice
+            };
+
+            _hid = new DeviceTypeInfo()
+            {
+                GetDeviceKeysCallback = GetHidDeviceKeys,
+                TryCreateDeviceCallback = TryCreateHidDevice
+            };
+
+            _serial = new DeviceTypeInfo()
+            {
+                GetDeviceKeysCallback = GetSerialDeviceKeys,
+                TryCreateDeviceCallback = TryCreateSerialDevice
+            };
         }
 
         internal void InitializeEventManager()
@@ -94,58 +85,52 @@ namespace HidSharp.Platform
             if (!condition) { throw new InvalidOperationException(error); }
         }
 
-        public IEnumerable<Device> GetDevices()
+        public virtual BleDiscovery BeginBleDiscovery()
         {
-            Device[] deviceList;
-            
-            lock (_getDevicesLock)
+            throw new NotSupportedException();
+        }
+
+        IEnumerable<Device> GetDevices(DeviceTypeInfo type)
+        {
+            var _deviceList = type.DeviceList;
+            var devicesLock = type.DevicesLock;
+            var getDeviceKeysCallback = type.GetDeviceKeysCallback;
+            var tryCreateDeviceCallback = type.TryCreateDeviceCallback;
+
+            Device[] deviceListArray;
+
+            lock (devicesLock)
             {
-                TypedKey[] devices = GetAllDeviceKeys();
-                TypedKey[] additions = devices.Except(_deviceList.Keys).ToArray();
-                TypedKey[] removals = _deviceList.Keys.Except(devices).ToArray();
+                object[] devices = getDeviceKeysCallback();
+                object[] additions = devices.Except(_deviceList.Keys).ToArray();
+                object[] removals = _deviceList.Keys.Except(devices).ToArray();
 
                 if (additions.Length > 0)
                 {
                     int completedAdditions = 0;
 
-                    foreach (TypedKey addition in additions)
+                    foreach (object addition in additions)
                     {
-                        ThreadPool.QueueUserWorkItem(new WaitCallback(addition_ =>
+                        ThreadPool.QueueUserWorkItem(new WaitCallback(key =>
+                        {
+                            Device device;
+                            bool created = tryCreateDeviceCallback(key, out device);
+
+                            if (created)
                             {
-                                var typedKey = (TypedKey)addition_;
-
-                                Device device = null; bool created;
-
-                                switch (typedKey.Type)
-                                {
-                                    case KeyType.Hid:
-                                        created = TryCreateHidDevice(typedKey.Key, out device);
-                                        break;
-
-                                    case KeyType.Serial:
-                                        created = TryCreateSerialDevice(typedKey.Key, out device);
-                                        break;
-
-                                    default:
-                                        created = false; Debug.Assert(false);
-                                        break;
-                                }
-
-                                if (created)
-                                {
-                                    // By not adding on failure, we'll end up retrying every time.
-                                    lock (_deviceList)
-                                    {
-                                        _deviceList.Add(typedKey, device);
-                                        Debug.Print("** HIDSharp detected a new device: {0}", typedKey.Key);
-                                    }
-                                }
-
+                                // By not adding on failure, we'll end up retrying every time.
                                 lock (_deviceList)
                                 {
-                                    completedAdditions++; Monitor.Pulse(_deviceList);
+                                    _deviceList.Add(key, device);
+                                    HidSharpDiagnostics.Trace("Detected a new device: {0}", key);
                                 }
-                            }), addition);
+                            }
+
+                            lock (_deviceList)
+                            {
+                                completedAdditions++; Monitor.Pulse(_deviceList);
+                            }
+                        }), addition);
                     }
 
                     lock (_deviceList)
@@ -154,27 +139,33 @@ namespace HidSharp.Platform
                     }
                 }
 
-                foreach (TypedKey removal in removals)
+                foreach (object key in removals)
                 {
-                    _deviceList.Remove(removal);
-                    Debug.Print("** HIDSharp detected a device removal: {0}", removal.Key);
+                    _deviceList.Remove(key);
+                    HidSharpDiagnostics.Trace("Detected a device removal: {0}", key);
                 }
-                deviceList = _deviceList.Values.ToArray();
+                deviceListArray = _deviceList.Values.ToArray();
             }
 
-            return deviceList;
+            return deviceListArray;
         }
 
-        TypedKey[] GetAllDeviceKeys()
+        public IEnumerable<Device> GetDevices(DeviceTypes types)
         {
-            return GetHidDeviceKeys().Select(key => new TypedKey() { Key = key, Type = KeyType.Hid })
-                .Concat(GetSerialDeviceKeys().Select(key => new TypedKey() { Key = key, Type = KeyType.Serial }))
-                .ToArray();
+            var devices = Enumerable.Empty<Device>();
+            if (0 != (types & DeviceTypes.Hid)) { devices = devices.Concat(GetDevices(_hid)); }
+            if (0 != (types & DeviceTypes.Serial)) { devices = devices.Concat(GetDevices(_serial)); }
+            if (0 != (types & DeviceTypes.Ble)) { devices = devices.Concat(GetDevices(_ble)); }
+            return devices;
         }
+
+        protected abstract object[] GetBleDeviceKeys();
 
         protected abstract object[] GetHidDeviceKeys();
 
         protected abstract object[] GetSerialDeviceKeys();
+
+        protected abstract bool TryCreateBleDevice(object key, out Device device);
 
         protected abstract bool TryCreateHidDevice(object key, out Device device);
 

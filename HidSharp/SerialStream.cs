@@ -16,6 +16,7 @@
 #endregion
 
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 
 namespace HidSharp
@@ -31,11 +32,14 @@ namespace HidSharp
         protected SerialStream(SerialDevice device)
             : base(device)
         {
-            BaudRate = 9600;
-            DataBits = 8;
-            Parity = SerialParity.None;
-            StopBits = 1;
+            ReadTimeout = 3000;
+            WriteTimeout = 3000;
+
             NewLine = "\r\n";
+            BaudRate = SerialSettings.Default.BaudRate;
+            DataBits = SerialSettings.Default.DataBits;
+            Parity = SerialSettings.Default.Parity;
+            StopBits = SerialSettings.Default.StopBits;
         }
 
         public string ReadTo(string ending)
@@ -69,11 +73,13 @@ namespace HidSharp
             return Encoding.GetString(@bytes.ToArray());
         }
 
+        [Obfuscation(Exclude = true)]
         public string ReadLine()
         {
             return ReadTo(NewLine);
         }
 
+        [Obfuscation(Exclude = true)]
         public void Write(string s)
         {
             Throw.If.Null(s, "s");
@@ -81,6 +87,7 @@ namespace HidSharp
             Write(bytes, 0, bytes.Length);
         }
 
+        [Obfuscation(Exclude = true)]
         public void WriteLine(string s)
         {
             Throw.If.Null(s, "s");

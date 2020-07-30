@@ -17,6 +17,7 @@
 
 using System;
 using System.IO;
+using HidSharp.Utility;
 
 namespace HidSharp
 {
@@ -38,8 +39,6 @@ namespace HidSharp
         {
             Throw.If.Null(device);
             Device = device;
-            ReadTimeout = 3000;
-            WriteTimeout = 3000;
         }
 
         /// <inheritdoc/>
@@ -49,9 +48,9 @@ namespace HidSharp
             {
                 OnClosed();
             }
-            catch
+            catch (Exception e)
             {
-
+                HidSharpDiagnostics.Trace("OnClosed threw an exception: {0}", e);
             }
 
             base.Dispose(disposing);
@@ -70,8 +69,7 @@ namespace HidSharp
         /// <inheritdoc/>
         public override int EndRead(IAsyncResult asyncResult)
         {
-            Throw.If.Null(asyncResult, "asyncResult");
-            return ((AsyncResult<int>)asyncResult).EndOperation();
+            return AsyncResult<int>.EndOperation(asyncResult);
         }
 
         /// <inheritdoc/>
@@ -87,8 +85,7 @@ namespace HidSharp
         /// <inheritdoc/>
         public override void EndWrite(IAsyncResult asyncResult)
         {
-            Throw.If.Null(asyncResult, "asyncResult");
-            ((AsyncResult<int>)asyncResult).EndOperation();
+            AsyncResult<int>.EndOperation(asyncResult);
         }
 
         /// <exclude />

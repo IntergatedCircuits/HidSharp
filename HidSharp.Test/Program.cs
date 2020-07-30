@@ -25,9 +25,12 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Threading;
+using HidSharp.Experimental;
 using HidSharp.Reports;
 using HidSharp.Reports.Encodings;
+using HidSharp.Utility;
 
 namespace HidSharp.Test
 {
@@ -65,9 +68,137 @@ namespace HidSharp.Test
 
         static void Main(string[] args)
         {
+            //Trace.Listeners.Clear();
+            //Trace.Listeners.Add(new ConsoleTraceListener());
+
+            HidSharpDiagnostics.EnableTracing = true;
+            HidSharpDiagnostics.PerformStrictChecks = true;
+
             var list = DeviceList.Local;
             list.Changed += (sender, e) => Console.WriteLine("Device list changed.");
-            
+
+            //Console.WriteLine("Beginning discovery.");
+            //using (list.BeginBleDiscovery())
+            {
+
+            var allDeviceList = list.GetAllDevices().ToArray();
+            Console.WriteLine("All device list:");
+            foreach (Device dev in allDeviceList)
+            {
+                Console.WriteLine(dev.ToString() + " @ " + dev.DevicePath);
+                /*
+                if (dev is HidDevice)
+                {
+                    foreach (var serialPort in
+                        (((HidDevice)dev).GetSerialPorts()))
+                    {
+                        Console.WriteLine("    " + serialPort);
+                    }
+                }
+                */
+            }
+
+            var bleDeviceList = list.GetBleDevices().ToArray();
+            Console.WriteLine("BLE device list:");
+            foreach (BleDevice dev in bleDeviceList)
+            {
+                Console.WriteLine(dev.ToString() + "@" + dev.DevicePath);
+                foreach (var service in dev.GetServices())
+                {
+                    Console.WriteLine(string.Format("\tService: {0}", service.Uuid));
+                    foreach (var characteristic in service.GetCharacteristics())
+                    {
+                        Console.WriteLine(string.Format("\t\tCharacteristic: {0} (Properties: {1})", characteristic.Uuid, characteristic.Properties));
+                        foreach (var descriptor in characteristic.GetDescriptors())
+                        {
+                            Console.WriteLine(string.Format("\t\t\tDescriptor: {0}", descriptor.Uuid));
+                        }
+                    }
+
+                    if (service.Uuid == new BleUuid("63dc0001-fa35-4205-b09f-0fc6072ec515"))
+                    {
+                        try
+                        {
+                            using (var svc = dev.Open(service))
+                            {
+                                Console.WriteLine("Opened!");
+
+                                BleCharacteristic rx = null;
+
+                                foreach (var ch in service.GetCharacteristics())
+                                {
+                                    Console.WriteLine(string.Format("{0} = {1}", ch.Uuid, ch.IsReadable ? string.Join(" ", svc.ReadCharacteristic(ch)) : "N/A"));
+
+                                    foreach (var d in ch.GetDescriptors())
+                                    {
+                                        Console.WriteLine(string.Format("\t{0} = {1}", d.Uuid, string.Join(" ", svc.ReadDescriptor(d))));
+                                    }
+
+                                    if (BleCccd.Notification != svc.ReadCccd(ch))
+                                    {
+                                        svc.WriteCccd(ch, BleCccd.Notification);
+                                    }
+
+                                    if (ch.Uuid == new BleUuid("63dc0002-fa35-4205-b09f-0fc6072ec515")) { rx = ch; }
+                                }
+
+                                Action beginReadEvent = null;
+                                AsyncCallback endReadEvent = null;
+                                beginReadEvent = () =>
+                                    {
+                                        svc.BeginReadEvent(endReadEvent, null);
+                                    };
+                                endReadEvent = ar =>
+                                    {
+                                        BleEvent @event;
+
+                                        try
+                                        {
+                                            @event = svc.EndReadEvent(ar);
+                                        }
+                                        catch (ObjectDisposedException)
+                                        {
+                                            Console.WriteLine("closed");
+                                            return;
+                                        }
+                                        catch (TimeoutException)
+                                        {
+                                            Console.WriteLine("timed out");
+                                            @event = default(BleEvent);
+                                        }
+
+                                        if (@event.Value != null)
+                                        {
+                                            Console.WriteLine(string.Format("{0} -> {1}", @event.Characteristic, string.Join(" ", @event.Value.Select(x => x.ToString()))));
+
+                                            if (rx != null)
+                                            {
+                                                Console.WriteLine("writing");
+                                                svc.WriteCharacteristicWithoutResponse(rx, new[] { (byte)0xdd, (byte)1, (byte)'A' });
+                                            }
+                                        }
+                                        beginReadEvent();
+                                    };
+                                beginReadEvent();
+
+                                Thread.Sleep(30000);
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e.ToString());
+                        }
+                    }
+                }
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Press any key");
+            Console.ReadKey();
+            Console.WriteLine();
+            }
+            //Console.WriteLine("Ending discovery.");
+
             /*
             var serialDeviceList = list.GetSerialDevices().ToArray();
             Console.WriteLine("Serial device list:");

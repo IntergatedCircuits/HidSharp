@@ -69,6 +69,12 @@ namespace HidSharp
             }
         }
 
+        internal static T EndOperation(IAsyncResult asyncResult)
+        {
+            Throw.If.Null(asyncResult);
+            return ((AsyncResult<T>)asyncResult).EndOperation();
+        }
+
         public AsyncCallback AsyncCallback
         {
             get;
