@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2011 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2011, 2013 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -19,8 +19,14 @@ using System.Collections.Generic;
 
 namespace HidSharp.ReportDescriptors.Parser
 {
+    /// <summary>
+    /// Parses HID report descriptors.
+    /// </summary>
     public class ReportDescriptorParser
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ReportDescriptorParser"/> class.
+        /// </summary>
         public ReportDescriptorParser()
         {
             RootCollection = new ReportCollection();
@@ -30,6 +36,9 @@ namespace HidSharp.ReportDescriptors.Parser
             Clear();
         }
 
+        /// <summary>
+        /// Resets the parser to its initial state.
+        /// </summary>
         public void Clear()
         {
             CurrentCollection = RootCollection;
@@ -85,13 +94,46 @@ namespace HidSharp.ReportDescriptors.Parser
             return GlobalItemState.ContainsKey(tag);
         }
 
+        /// <summary>
+        /// Parses a raw HID report descriptor.
+        /// </summary>
+        /// <param name="buffer">The buffer containing the report descriptor.</param>
+        public void Parse(byte[] buffer)
+        {
+            if (buffer == null) { throw new ArgumentNullException("buffer"); }
+            Parse(buffer, 0, buffer.Length);
+        }
+
+        /// <summary>
+        /// Parses a raw HID report descriptor.
+        /// </summary>
+        /// <param name="buffer">The buffer containing the report descriptor.</param>
+        /// <param name="offset">The offset into the buffer to begin parsing from.</param>
+        /// <param name="count">The number of bytes to parse.</param>
+        public void Parse(byte[] buffer, int offset, int count)
+        {
+            var items = ReportDescriptors.EncodedItem.DecodeRaw(buffer, offset, count);
+            Parse(items);
+        }
+
+        /// <summary>
+        /// Parses all of the <see cref="EncodedItem"/> elements in a report descriptor.
+        /// </summary>
+        /// <param name="items">The items to parse.</param>
         public void Parse(IEnumerable<EncodedItem> items)
         {
+            if (items == null) { throw new ArgumentNullException("items"); }
             foreach (EncodedItem item in items) { Parse(item); }
         }
 
+        /// <summary>
+        /// Parses a single <see cref="EncodedItem"/>.
+        /// Call this repeatedly for every item to completely decode a report descriptor.
+        /// </summary>
+        /// <param name="item">The item to parse.</param>
         public void Parse(EncodedItem item)
         {
+            if (item == null) { throw new ArgumentNullException("item"); }
             uint value = item.DataValue;
 
             switch (item.Type)
@@ -331,6 +373,10 @@ namespace HidSharp.ReportDescriptors.Parser
             get { return FilterReports(ReportType.Input); }
         }
 
+        /// <summary>
+        /// The maximum input report length.
+        /// The Report ID is not included in this length.
+        /// </summary>
         public int InputReportMaxLength
         {
             get { return GetMaxLengthOfReports(InputReports); }
@@ -341,6 +387,10 @@ namespace HidSharp.ReportDescriptors.Parser
             get { return FilterReports(ReportType.Output); }
         }
 
+        /// <summary>
+        /// The maximum output report length.
+        /// The Report ID is not included in this length.
+        /// </summary>
         public int OutputReportMaxLength
         {
             get { return GetMaxLengthOfReports(OutputReports); }
@@ -351,6 +401,10 @@ namespace HidSharp.ReportDescriptors.Parser
             get { return FilterReports(ReportType.Feature); }
         }
 
+        /// <summary>
+        /// The maximum feature report length.
+        /// The Report ID is not included in this length.
+        /// </summary>
         public int FeatureReportMaxLength
         {
             get { return GetMaxLengthOfReports(FeatureReports); }
@@ -362,6 +416,9 @@ namespace HidSharp.ReportDescriptors.Parser
             private set;
         }
 
+        /// <summary>
+        /// True if the device sends Report IDs.
+        /// </summary>
         public bool ReportsUseID
         {
             get;

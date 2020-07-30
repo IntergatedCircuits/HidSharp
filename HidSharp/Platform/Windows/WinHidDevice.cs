@@ -19,6 +19,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace HidSharp.Platform.Windows
 {
@@ -31,13 +32,25 @@ namespace HidSharp.Platform.Windows
         int _vid, _pid, _version;
         int _maxInput, _maxOutput, _maxFeature;
 
+        object _completeSync = new object();
+        volatile bool _complete;
+
         internal WinHidDevice(string path)
         {
             _path = path;
         }
 
+        void WaitForCompletion()
+        {
+            lock (_completeSync)
+            {
+                while (!_complete) { Monitor.Wait(_completeSync); }
+            }
+        }
+
         public override HidStream Open()
         {
+            WaitForCompletion();
             var stream = new WinHidStream();
             try { stream.Init(_path, this); return stream; }
             catch { stream.Close(); throw; }
@@ -52,46 +65,59 @@ namespace HidSharp.Platform.Windows
             _pid = attributes.ProductID;
             _vid = attributes.VendorID;
             _version = attributes.VersionNumber;
-
-            char[] buffer = new char[128];
-            _manufacturer = NativeMethods.HidD_GetManufacturerString(handle, buffer, 256) ? NativeMethods.NTString(buffer) : "";
-            _productName = NativeMethods.HidD_GetProductString(handle, buffer, 256) ? NativeMethods.NTString(buffer) : "";
-            _serialNumber = NativeMethods.HidD_GetSerialNumberString(handle, buffer, 256) ? NativeMethods.NTString(buffer) : "";
-
-            IntPtr preparsed;
-            if (NativeMethods.HidD_GetPreparsedData(handle, out preparsed))
-            {
-                NativeMethods.HIDP_CAPS caps;
-                int statusCaps = NativeMethods.HidP_GetCaps(preparsed, out caps);
-                if (statusCaps == NativeMethods.HIDP_STATUS_SUCCESS)
-                {
-                    _maxInput = caps.InputReportByteLength;
-                    _maxOutput = caps.OutputReportByteLength;
-                    _maxFeature = caps.FeatureReportByteLength;
-                }
-                NativeMethods.HidD_FreePreparsedData(preparsed);
-            }
             return true;
+        }
+
+        internal void GetInfoComplete(IntPtr handle)
+        {
+            try
+            {
+                char[] buffer = new char[128];
+
+                _manufacturer = NativeMethods.HidD_GetManufacturerString(handle, buffer, 256) ? NativeMethods.NTString(buffer) : "";
+                _productName = NativeMethods.HidD_GetProductString(handle, buffer, 256) ? NativeMethods.NTString(buffer) : "";
+                _serialNumber = NativeMethods.HidD_GetSerialNumberString(handle, buffer, 256) ? NativeMethods.NTString(buffer) : "";
+
+                IntPtr preparsed;
+                if (NativeMethods.HidD_GetPreparsedData(handle, out preparsed))
+                {
+                    NativeMethods.HIDP_CAPS caps;
+                    int statusCaps = NativeMethods.HidP_GetCaps(preparsed, out caps);
+                    if (statusCaps == NativeMethods.HIDP_STATUS_SUCCESS)
+                    {
+                        _maxInput = caps.InputReportByteLength;
+                        _maxOutput = caps.OutputReportByteLength;
+                        _maxFeature = caps.FeatureReportByteLength;
+                    }
+                    NativeMethods.HidD_FreePreparsedData(preparsed);
+                }
+            }
+            finally
+            {
+                NativeMethods.CloseHandle(handle);
+            }
+
+            lock (_completeSync) { _complete = true; Monitor.PulseAll(_completeSync); }
         }
 
         public override int MaxInputReportLength
         {
-            get { return _maxInput; }
+            get { WaitForCompletion(); return _maxInput; }
         }
 
         public override int MaxOutputReportLength
         {
-            get { return _maxOutput; }
+            get { WaitForCompletion(); return _maxOutput; }
         }
 
         public override int MaxFeatureReportLength
         {
-            get { return _maxFeature; }
+            get { WaitForCompletion(); return _maxFeature; }
         }
 
         public override string Manufacturer
         {
-            get { return _manufacturer; }
+            get { WaitForCompletion(); return _manufacturer; }
         }
 
         public override int ProductID
@@ -101,7 +127,7 @@ namespace HidSharp.Platform.Windows
 
         public override string ProductName
         {
-            get { return _productName; }
+            get { WaitForCompletion(); return _productName; }
         }
 
         public override int ProductVersion
@@ -111,7 +137,7 @@ namespace HidSharp.Platform.Windows
 
         public override string SerialNumber
         {
-            get { return _serialNumber; }
+            get { WaitForCompletion(); return _serialNumber; }
         }
 
         public override int VendorID

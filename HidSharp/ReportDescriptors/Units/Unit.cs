@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2011 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2011, 2013 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -18,10 +18,17 @@ using System;
 
 namespace HidSharp.ReportDescriptors.Units
 {
+    /// <summary>
+    /// Describes the units of a report value.
+    /// </summary>
     public class Unit
     {
         uint _value;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Unit"/> class.
+        /// </summary>
+        /// <param name="value">The raw HID value describing the units.</param>
         public Unit(uint value)
         {
             _value = value;
@@ -37,8 +44,14 @@ namespace HidSharp.ReportDescriptors.Units
             return DecodeExponent(Element(index));
         }
 
+        /// <summary>
+        /// Decodes an encoded HID unit exponent.
+        /// </summary>
+        /// <param name="value">The encoded exponent.</param>
+        /// <returns>The exponent.</returns>
         public static int DecodeExponent(uint value)
         {
+            if (value > 15) { throw new ArgumentOutOfRangeException("value", "Value range is [0, 15]."); }
             return value >= 8 ? (int)value - 16 : (int)value;
         }
 
@@ -47,6 +60,11 @@ namespace HidSharp.ReportDescriptors.Units
             Value &= 0xfu << (index << 2); Value |= (value & 0xfu) << (index << 2);
         }
 
+        /// <summary>
+        /// Encodes an exponent in HID unit form.
+        /// </summary>
+        /// <param name="value">The exponent.</param>
+        /// <returns>The encoded exponent.</returns>
         public static uint EncodeExponent(int value)
         {
             if (value < -8 || value > 7)
@@ -59,18 +77,27 @@ namespace HidSharp.ReportDescriptors.Units
             Element(index, EncodeExponent(value));
         }
 
+        /// <summary>
+        /// Gets or sets the unit system.
+        /// </summary>
         public UnitSystem System
         {
             get { return (UnitSystem)Element(0); }
             set { Element(0, (uint)value); }
         }
 
+        /// <summary>
+        /// Gets or sets the exponent of the report value's units of length.
+        /// </summary>
         public int LengthExponent
         {
             get { return Exponent(1); }
             set { Exponent(1, value); }
         }
 
+        /// <summary>
+        /// Gets the units of length corresponding to <see cref="System"/>.
+        /// </summary>
         public LengthUnit LengthUnit
         {
             get
@@ -86,12 +113,18 @@ namespace HidSharp.ReportDescriptors.Units
             }
         }
 
+        /// <summary>
+        /// Gets or sets the exponent of the report value's units of mass.
+        /// </summary>
         public int MassExponent
         {
             get { return Exponent(2); }
             set { Exponent(2, value); }
         }
 
+        /// <summary>
+        /// Gets the units of mass corresponding to <see cref="System"/>.
+        /// </summary>
         public MassUnit MassUnit
         {
             get
@@ -107,12 +140,18 @@ namespace HidSharp.ReportDescriptors.Units
             }
         }
 
+        /// <summary>
+        /// Gets or sets the exponent of the report value's units of time.
+        /// </summary>
         public int TimeExponent
         {
             get { return Exponent(3); }
             set { Exponent(3, value); }
         }
 
+        /// <summary>
+        /// Gets the units of time corresponding to <see cref="System"/>.
+        /// </summary>
         public TimeUnit TimeUnit
         {
             get
@@ -122,12 +161,18 @@ namespace HidSharp.ReportDescriptors.Units
             }
         }
 
+        /// <summary>
+        /// Gets or sets the exponent of the report value's units of temperature.
+        /// </summary>
         public int TemperatureExponent
         {
             get { return Exponent(4); }
             set { Exponent(4, value); }
         }
 
+        /// <summary>
+        /// Gets the units of temperature corresponding to <see cref="System"/>.
+        /// </summary>
         public TemperatureUnit TemperatureUnit
         {
             get
@@ -143,12 +188,18 @@ namespace HidSharp.ReportDescriptors.Units
             }
         }
 
+        /// <summary>
+        /// Gets or sets the exponent of the report value's units of current.
+        /// </summary>
         public int CurrentExponent
         {
             get { return Exponent(5); }
             set { Exponent(5, value); }
         }
 
+        /// <summary>
+        /// Gets the units of current corresponding to <see cref="System"/>.
+        /// </summary>
         public CurrentUnit CurrentUnit
         {
             get
@@ -158,12 +209,18 @@ namespace HidSharp.ReportDescriptors.Units
             }
         }
 
+        /// <summary>
+        /// Gets or sets the exponent of the report value's units of luminous intensity.
+        /// </summary>
         public int LuminousIntensityExponent
         {
             get { return Exponent(6); }
             set { Exponent(6, value); }
         }
 
+        /// <summary>
+        /// Gets the units of luminous intensity corresponding to <see cref="System"/>.
+        /// </summary>
         public LuminousIntensityUnit LuminousIntensityUnit
         {
             get
@@ -173,6 +230,9 @@ namespace HidSharp.ReportDescriptors.Units
             }
         }
 
+        /// <summary>
+        /// Gets or sets the raw HID value describing the units.
+        /// </summary>
         public uint Value
         {
             get { return _value; }

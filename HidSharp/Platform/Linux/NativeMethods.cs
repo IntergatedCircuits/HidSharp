@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -15,12 +15,10 @@
 #endregion
 
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace HidSharp.Platform.Linux
 {
@@ -108,6 +106,8 @@ namespace HidSharp.Platform.Linux
 
             string syscallPath = "Mono.Unix.Native.Syscall, Mono.Posix, PublicKeyToken=0738eb9f132ed756";
             var syscall = Type.GetType(syscallPath);
+            if (syscall == null) { return false; }
+
             var unameArgs = new object[1];
             int unameRet = (int)syscall.InvokeMember("uname",
                                                      BindingFlags.InvokeMethod | BindingFlags.Static, null, null, unameArgs,

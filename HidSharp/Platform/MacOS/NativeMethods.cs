@@ -16,7 +16,6 @@
 
 using System;
 using System.Linq;
-using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace HidSharp.Platform.MacOS

@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2011 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2011, 2013 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -44,6 +44,8 @@ namespace HidSharp.ReportDescriptors
 
         public int Decode(IList<byte> buffer, int offset, int count)
         {
+            Throw.If.OutOfRange(buffer, offset, count);
+
             Clear(); int startCount = count;
             byte header = GetByte(buffer, ref offset, ref count);
 
@@ -55,6 +57,8 @@ namespace HidSharp.ReportDescriptors
 
         public static IEnumerable<EncodedItem> DecodeRaw(IList<byte> buffer, int offset, int count)
         {
+            Throw.If.OutOfRange(buffer, offset, count);
+
             while (count > 0)
             {
                 EncodedItem item = new EncodedItem();
@@ -66,6 +70,8 @@ namespace HidSharp.ReportDescriptors
 
         public static IEnumerable<EncodedItem> DecodeHIDDT(IList<byte> buffer, int offset, int count)
         {
+            Throw.If.OutOfRange(buffer, offset, count);
+
             while (count > 34)
             {
                 EncodedItem item = new EncodedItem();
@@ -77,6 +83,8 @@ namespace HidSharp.ReportDescriptors
 
         public void Encode(IList<byte> buffer)
         {
+            Throw.If.Null(buffer, "buffer");
+
             if (buffer == null) { throw new ArgumentNullException("buffer"); }
             if (!IsShortTag) { return; }
 
@@ -87,6 +95,7 @@ namespace HidSharp.ReportDescriptors
 
         public static void EncodeRaw(IList<byte> buffer, IEnumerable<EncodedItem> items)
         {
+            Throw.If.Null(buffer, "buffer").Null(items, "items");
             foreach (EncodedItem item in items) { item.Encode(buffer); }
         }
 

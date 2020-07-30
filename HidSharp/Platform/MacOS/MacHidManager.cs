@@ -17,7 +17,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace HidSharp.Platform.MacOS
 {
@@ -55,8 +54,9 @@ namespace HidSharp.Platform.MacOS
             return paths.Cast<object>().ToArray();
         }
 
-        protected override bool TryCreateDevice(object key, out HidDevice device)
+        protected override bool TryCreateDevice(object key, out HidDevice device, out object creationState)
         {
+            creationState = null;
             var path = (NativeMethods.io_string_t)key; var hidDevice = new MacHidDevice(path);
             using (var handle = NativeMethods.IORegistryEntryFromPath(0, ref path).ToIOObject())
             {
@@ -64,6 +64,12 @@ namespace HidSharp.Platform.MacOS
                 device = hidDevice; return true;
             }
         }
+
+        protected override void CompleteDevice(object key, HidDevice device, object creationState)
+        {
+            
+        }
+
         public override bool IsSupported
         {
             get

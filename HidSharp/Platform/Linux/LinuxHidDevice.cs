@@ -15,9 +15,6 @@
 #endregion
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace HidSharp.Platform.Linux
 {
@@ -26,6 +23,7 @@ namespace HidSharp.Platform.Linux
         string _manufacturer;
         string _productName;
         string _serialNumber;
+        byte[] _reportDescriptor;
         int _vid, _pid, _version;
         int _maxInput, _maxOutput, _maxFeature;
         bool _reportsUseID;
@@ -43,9 +41,14 @@ namespace HidSharp.Platform.Linux
             catch { stream.Close(); throw; }
         }
 
-        static bool TryParseReportDescriptor(IntPtr device, out ReportDescriptors.Parser.ReportDescriptorParser parser)
+        public override byte[] GetReportDescriptor()
         {
-            parser = null;
+            return (byte[])_reportDescriptor.Clone();
+        }
+
+        static bool TryParseReportDescriptor(IntPtr device, out ReportDescriptors.Parser.ReportDescriptorParser parser, out byte[] reportDescriptor)
+        {
+            parser = null; reportDescriptor = null;
 			string devnode = NativeMethods.udev_device_get_devnode(device);
             if (null == devnode) { return false; }
             
@@ -63,10 +66,8 @@ namespace HidSharp.Platform.Linux
                 if (NativeMethods.ioctl(handle, NativeMethods.HIDIOCGRDESC, ref desc) < 0) { return false; }
 
                 Array.Resize(ref desc.value, (int)descsize);
-                var items = ReportDescriptors.EncodedItem.DecodeRaw(desc.value, 0, (int)descsize);
-
                 parser = new ReportDescriptors.Parser.ReportDescriptorParser();
-                parser.Parse(items); return true;
+                parser.Parse(desc.value); reportDescriptor = desc.value; return true;
             }
             finally
             {
@@ -109,7 +110,7 @@ namespace HidSharp.Platform.Linux
                                     _serialNumber = serialNumber;
 
                                     ReportDescriptors.Parser.ReportDescriptorParser parser;
-                                    if (TryParseReportDescriptor(device, out parser))
+                                    if (TryParseReportDescriptor(device, out parser, out _reportDescriptor))
                                     {
                                         // Follow the Windows convention: No Report ID? Report ID is 0.
                                         // So, it's always one byte above the parser's result.

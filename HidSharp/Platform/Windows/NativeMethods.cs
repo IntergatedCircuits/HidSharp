@@ -25,7 +25,7 @@ using System.Threading;
 
 namespace HidSharp.Platform.Windows
 {
-    static class NativeMethods
+    unsafe static class NativeMethods
     {
         // For constants, see PInvoke.Net,
         //  http://doxygen.reactos.org/de/d2a/hidclass_8h_source.html
@@ -33,6 +33,7 @@ namespace HidSharp.Platform.Windows
         // and Google.
         public const int ERROR_HANDLE_EOF = 38;
         public const int ERROR_INSUFFICIENT_BUFFER = 122;
+        public const int ERROR_OPERATION_ABORTED = 995;
         public const int ERROR_IO_PENDING = 997;
         public const uint FILE_ANY_ACCESS = 0;
         public const uint FILE_DEVICE_KEYBOARD = 11;
@@ -216,8 +217,10 @@ namespace HidSharp.Platform.Windows
         public unsafe static void OverlappedOperation(IntPtr ioHandle,
             IntPtr eventHandle, int eventTimeout, IntPtr closeEventHandle,
             bool overlapResult,
-            ref NativeOverlapped overlapped, out uint bytesTransferred)
+            NativeOverlapped* overlapped, out uint bytesTransferred)
         {
+            bool closed = false;
+
             if (!overlapResult)
             {
                 int win32Error = Marshal.GetLastWin32Error();
@@ -233,23 +236,33 @@ namespace HidSharp.Platform.Windows
                 switch (waitResult)
                 {
                     case NativeMethods.WAIT_OBJECT_0: break;
-                    case NativeMethods.WAIT_OBJECT_1: CancelIo(ioHandle); throw new IOException("Connection closed.");
-                    default: throw new TimeoutException("Operation timed out.");
+                    case NativeMethods.WAIT_OBJECT_1: closed = true; goto default;
+                    default: CancelIo(ioHandle); break;
                 }
             }
 
-            if (!NativeMethods.GetOverlappedResult(ioHandle, ref overlapped, out bytesTransferred, true))
+            if (!NativeMethods.GetOverlappedResult(ioHandle, overlapped, out bytesTransferred, true))
             {
                 int win32Error = Marshal.GetLastWin32Error();
                 if (win32Error != NativeMethods.ERROR_HANDLE_EOF)
                 {
+                    if (closed)
+                    {
+                        throw new IOException("Connection closed.");
+                    }
+
+                    if (win32Error == NativeMethods.ERROR_OPERATION_ABORTED)
+                    {
+                        throw new TimeoutException("Operation timed out.");
+                    }
+
                     throw new IOException("Operation failed after some time.", new Win32Exception());
                 }
 
                 bytesTransferred = 0;
             }
         }
-
+        
         [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool GetVersionEx(ref OSVERSIONINFO version);
@@ -344,12 +357,12 @@ namespace HidSharp.Platform.Windows
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public unsafe static extern bool ReadFile(IntPtr handle, byte* buffer, int bytesToRead,
-            IntPtr bytesRead, ref NativeOverlapped overlapped);
+            IntPtr bytesRead, NativeOverlapped* overlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public unsafe static extern bool WriteFile(IntPtr handle, byte* buffer, int bytesToWrite,
-            IntPtr bytesWritten, ref NativeOverlapped overlapped);
+            IntPtr bytesWritten, NativeOverlapped* overlapped);
 
         public static string NTString(char[] buffer)
         {
@@ -365,13 +378,17 @@ namespace HidSharp.Platform.Windows
         [return: MarshalAs(UnmanagedType.Bool)]
         public unsafe static extern bool DeviceIoControl(IntPtr handle,
             uint ioControlCode, byte* inBuffer, uint inBufferSize, byte* outBuffer, uint outBufferSize,
-            IntPtr bytesReturned, ref NativeOverlapped overlapped);
+            IntPtr bytesReturned, NativeOverlapped* overlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool GetOverlappedResult(IntPtr handle,
-            ref NativeOverlapped overlapped, out uint bytesTransferred,
+            NativeOverlapped* overlapped, out uint bytesTransferred,
             [MarshalAs(UnmanagedType.Bool)] bool wait);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool ResetEvent(IntPtr handle);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]

@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2013 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -15,29 +15,37 @@
 #endregion
 
 using System;
+using System.Collections.Generic;
 
-namespace HidSharp.Platform.Unsupported
+namespace HidSharp
 {
-    class UnsupportedHidManager : HidManager
+    sealed class Throw
     {
-        protected override object[] Refresh()
+        Throw()
         {
-            return new object[0];
+
         }
 
-        protected override bool TryCreateDevice(object key, out HidDevice device, out object creationState)
+        public static Throw If
         {
-            throw new NotImplementedException();
+            get { return null; }
+        }
+    }
+
+    static class ThrowExtensions
+    {
+        public static Throw Null<T>(this Throw self, T value, string paramName)
+        {
+            if (value == null) { throw new ArgumentNullException(paramName); }
+            return null;
         }
 
-        protected override void CompleteDevice(object key, HidDevice device, object creationState)
+        public static Throw OutOfRange<T>(this Throw self, IList<T> buffer, int offset, int count)
         {
-            throw new NotImplementedException();
-        }
-
-        public override bool IsSupported
-        {
-            get { return true; }
+            Throw.If.Null(buffer, "buffer");
+            if (offset < 0 || offset > buffer.Count) { throw new ArgumentOutOfRangeException("offset"); }
+            if (count < 0 || count > buffer.Count - offset) { throw new ArgumentOutOfRangeException("count"); }
+            return null;
         }
     }
 }

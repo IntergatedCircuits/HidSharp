@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -43,7 +43,7 @@ namespace HidSharp.Platform.Windows
         internal void Init(string path, WinHidDevice device)
         {
             IntPtr handle = NativeMethods.CreateFileFromDevice(path, NativeMethods.EFileAccess.Read | NativeMethods.EFileAccess.Write, NativeMethods.EFileShare.All);
-            if (handle == (IntPtr)(-1)) { throw new IOException("Unable to open HID device."); }
+            if (handle == (IntPtr)(-1)) { throw new IOException("Unable to open HID class device."); }
 
             _device = device;
 			_handle = handle;
@@ -67,7 +67,7 @@ namespace HidSharp.Platform.Windows
 
         public unsafe override void GetFeature(byte[] buffer, int offset, int count)
         {
-            CheckItAll(buffer, offset, count);
+            Throw.If.OutOfRange(buffer, offset, count);
 			
 			HandleAcquireIfOpenOrFail();
 			try
@@ -88,7 +88,7 @@ namespace HidSharp.Platform.Windows
         // for the Report ID.
         public unsafe override int Read(byte[] buffer, int offset, int count)
         {
-            CheckItAll(buffer, offset, count); uint bytesTransferred;
+            Throw.If.OutOfRange(buffer, offset, count); uint bytesTransferred;
             IntPtr @event = NativeMethods.CreateManualResetEventOrThrow();
 			
 			HandleAcquireIfOpenOrFail();
@@ -101,11 +101,13 @@ namespace HidSharp.Platform.Windows
 	
 	                fixed (byte* ptr = _readBuffer)
 	                {
-                        NativeOverlapped overlapped = new NativeOverlapped();
-	                    overlapped.EventHandle = @event;
-	                    NativeMethods.OverlappedOperation(_handle, @event, ReadTimeout, _closeEventHandle,
-	                        NativeMethods.ReadFile(_handle, ptr, maxIn, IntPtr.Zero, ref overlapped),
-	                        ref overlapped, out bytesTransferred);
+                        var overlapped = stackalloc NativeOverlapped[1];
+                        overlapped[0].EventHandle = @event;
+
+                        NativeMethods.OverlappedOperation(_handle, @event, ReadTimeout, _closeEventHandle,
+                            NativeMethods.ReadFile(_handle, ptr, maxIn, IntPtr.Zero, overlapped),
+                            overlapped, out bytesTransferred);
+
 	                    if (count > (int)bytesTransferred) { count = (int)bytesTransferred; }
 	                    Array.Copy(_readBuffer, 0, buffer, offset, count);
 	                    return count;
@@ -121,7 +123,7 @@ namespace HidSharp.Platform.Windows
 
         public unsafe override void SetFeature(byte[] buffer, int offset, int count)
         {
-            CheckItAll(buffer, offset, count);
+            Throw.If.OutOfRange(buffer, offset, count);
 			
 			HandleAcquireIfOpenOrFail();
 			try
@@ -140,7 +142,7 @@ namespace HidSharp.Platform.Windows
 
         public unsafe override void Write(byte[] buffer, int offset, int count)
         {
-            CheckItAll(buffer, offset, count); uint bytesTransferred;
+            Throw.If.OutOfRange(buffer, offset, count); uint bytesTransferred;
             IntPtr @event = NativeMethods.CreateManualResetEventOrThrow();
 
 			HandleAcquireIfOpenOrFail();
@@ -157,11 +159,12 @@ namespace HidSharp.Platform.Windows
 	                    int offset0 = 0;
 	                    while (count > 0)
 	                    {
-	                        NativeOverlapped overlapped = new NativeOverlapped();
-	                        overlapped.EventHandle = @event;
-	                        NativeMethods.OverlappedOperation(_handle, @event, WriteTimeout, _closeEventHandle,
-	                            NativeMethods.WriteFile(_handle, ptr + offset0, count, IntPtr.Zero, ref overlapped),
-	                            ref overlapped, out bytesTransferred);
+                            var overlapped = stackalloc NativeOverlapped[1];
+                            overlapped[0].EventHandle = @event;
+
+                            NativeMethods.OverlappedOperation(_handle, @event, WriteTimeout, _closeEventHandle,
+	                            NativeMethods.WriteFile(_handle, ptr + offset0, count, IntPtr.Zero, overlapped),
+	                            overlapped, out bytesTransferred);
 	                        count -= (int)bytesTransferred; offset0 += (int)bytesTransferred;
 	                    }
 	                }
@@ -172,6 +175,11 @@ namespace HidSharp.Platform.Windows
 				HandleRelease();
                 NativeMethods.CloseHandle(@event);
             }
+        }
+
+        public override HidDevice Device
+        {
+            get { return _device; }
         }
     }
 }

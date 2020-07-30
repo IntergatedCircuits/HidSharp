@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 [assembly: AssemblyCompany("Illusory Studios LLC")]
 [assembly: AssemblyCopyright("Copyright © 2010-2013 James F. Bellinger <http://www.zer7.com>")]
-[assembly: AssemblyDescription("Helpers for common HID devices")]
+[assembly: AssemblyDescription("Helpers for common HID class devices")]
 [assembly: AssemblyProduct("HidSharp")]
 [assembly: AssemblyTitle("HidSharp.DeviceHelpers")]
 [assembly: AssemblyFileVersion("1.3.0.0")]

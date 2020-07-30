@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -18,7 +18,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading;
 
 namespace HidSharp.Platform.Windows
 {
@@ -30,7 +29,7 @@ namespace HidSharp.Platform.Windows
 
             Guid hidGuid; NativeMethods.HidD_GetHidGuid(out hidGuid);
             NativeMethods.HDEVINFO devInfo = NativeMethods.SetupDiGetClassDevs(hidGuid, null, IntPtr.Zero, 
-                NativeMethods.DIGCF.AllClasses | NativeMethods.DIGCF.DeviceInterface | NativeMethods.DIGCF.Present);
+                /*NativeMethods.DIGCF.AllClasses |*/ NativeMethods.DIGCF.DeviceInterface | NativeMethods.DIGCF.Present);
 
             if (devInfo.IsValid)
             {
@@ -60,40 +59,46 @@ namespace HidSharp.Platform.Windows
             return paths.Cast<object>().ToArray();
         }
 
-        protected override bool TryCreateDevice(object key, out HidDevice device)
+        protected override bool TryCreateDevice(object key, out HidDevice device, out object completionState)
         {
             string path = (string)key; var hidDevice = new WinHidDevice(path);
             IntPtr handle = NativeMethods.CreateFileFromDevice(path, NativeMethods.EFileAccess.None, NativeMethods.EFileShare.All);
+            device = null; completionState = null; if (handle == (IntPtr)(-1)) { return false; }
 
-            try
-            {
-                if (handle == (IntPtr)(-1) || !hidDevice.GetInfo(handle)) { device = null; return false; }
-            }
-            finally
-            {
-                if (handle != (IntPtr)(-1)) { NativeMethods.CloseHandle(handle); }
-            }
+            bool ok = false;
+            try { ok = hidDevice.GetInfo(handle); } catch { }
+            if (!ok) { NativeMethods.CloseHandle(handle); return false; }
 
-            device = hidDevice; return true;
+            device = hidDevice; completionState = handle;
+            return true;
+        }
+
+        protected override void CompleteDevice(object key, HidDevice device, object creationState)
+        {
+            var hidDevice = (WinHidDevice)device; var handle = (IntPtr)creationState;
+            hidDevice.GetInfoComplete(handle);
         }
 
         public override bool IsSupported
         {
             get
             {
-                var version = new NativeMethods.OSVERSIONINFO();
-                version.OSVersionInfoSize = Marshal.SizeOf(typeof(NativeMethods.OSVERSIONINFO));
-
-                try
+                if (Environment.OSVersion.Platform == PlatformID.Win32NT)
                 {
-                    if (NativeMethods.GetVersionEx(ref version))
+                    var version = new NativeMethods.OSVERSIONINFO();
+                    version.OSVersionInfoSize = Marshal.SizeOf(typeof(NativeMethods.OSVERSIONINFO));
+
+                    try
                     {
-                        return true;
+                        if (NativeMethods.GetVersionEx(ref version) && version.PlatformID == 2)
+                        {
+                            return true;
+                        }
                     }
-                }
-                catch
-                {
-
+                    catch
+                    {
+                        // Apparently we have no P/Invoke access.
+                    }
                 }
 
                 return false;

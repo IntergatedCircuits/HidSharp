@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2011 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2011, 2013 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -16,9 +16,19 @@
 
 namespace HidSharp.ReportDescriptors.Units
 {
+    /// <summary>
+    /// Defines the possible units of time.
+    /// </summary>
     public enum TimeUnit
     {
+        /// <summary>
+        /// The unit system has no unit of time.
+        /// </summary>
         None,
+
+        /// <summary>
+        /// The unit of time is seconds.
+        /// </summary>
         Seconds
     }
 }

@@ -16,9 +16,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Text;
 
 namespace HidSharp.Platform.Linux
 {
@@ -65,11 +63,17 @@ namespace HidSharp.Platform.Linux
             return paths.Cast<object>().ToArray();
         }
 
-        protected override bool TryCreateDevice(object key, out HidDevice device)
+        protected override bool TryCreateDevice(object key, out HidDevice device, out object creationState)
         {
+            creationState = null;
             string syspath = (string)key; var hidDevice = new LinuxHidDevice(syspath);
             if (!hidDevice.GetInfo()) { device = null; return false; }
             device = hidDevice; return true;
+        }
+
+        protected override void CompleteDevice(object key, HidDevice device, object creationState)
+        {
+            
         }
 
         public override bool IsSupported

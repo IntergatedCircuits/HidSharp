@@ -17,7 +17,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -50,9 +49,9 @@ namespace HidSharp.Platform.MacOS
             using (var service = NativeMethods.IORegistryEntryFromPath(0, ref path).ToIOObject())
             {
                 handle = NativeMethods.IOHIDDeviceCreate(IntPtr.Zero, service);
-                if (handle == IntPtr.Zero) { throw new IOException("HID device not found."); }
+                if (handle == IntPtr.Zero) { throw new IOException("HID class device not found."); }
 
-                if (NativeMethods.IOReturn.Success != NativeMethods.IOHIDDeviceOpen(handle)) { NativeMethods.CFRelease(handle); throw new IOException("Unable to open HID device."); }
+                if (NativeMethods.IOReturn.Success != NativeMethods.IOHIDDeviceOpen(handle)) { NativeMethods.CFRelease(handle); throw new IOException("Unable to open HID class device."); }
             }
             _device = device;
             _handle = handle;
@@ -143,7 +142,7 @@ namespace HidSharp.Platform.MacOS
 
         public unsafe override void GetFeature(byte[] buffer, int offset, int count)
         {
-            CheckItAll(buffer, offset, count);
+            Throw.If.OutOfRange(buffer, offset, count);
 			
 			HandleAcquireIfOpenOrFail();
 			try
@@ -226,6 +225,11 @@ namespace HidSharp.Platform.MacOS
         public override void SetFeature(byte[] buffer, int offset, int count)
         {
             CommonWrite(buffer, offset, count, _outputQueue, true, _device.MaxFeatureReportLength);
+        }
+
+        public override HidDevice Device
+        {
+            get { return _device; }
         }
     }
 }

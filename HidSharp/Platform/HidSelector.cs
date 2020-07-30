@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -14,9 +14,6 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 #endregion
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 
 namespace HidSharp.Platform
@@ -30,9 +27,9 @@ namespace HidSharp.Platform
         {
             foreach (var hidManager in new HidManager[]
                 {
+                    new Windows.WinHidManager(),
                     new Linux.LinuxHidManager(),
                     new MacOS.MacHidManager(),
-                    new Windows.WinHidManager(),
                     new Unsupported.UnsupportedHidManager()
                 })
             {

@@ -14,10 +14,6 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 #endregion
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 namespace HidSharp.Platform.MacOS
 {
     class MacHidDevice : HidDevice

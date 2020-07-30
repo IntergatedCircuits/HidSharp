@@ -1,5 +1,5 @@
 ﻿#region License
-/* Copyright 2012 James F. Bellinger <http://www.zer7.com>
+/* Copyright 2012-2013 James F. Bellinger <http://www.zer7.com>
 
    Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -14,9 +14,7 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 #endregion
 
-using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 
@@ -58,13 +56,38 @@ namespace HidSharp.Platform
                 object[] additions = devices.Except(_deviceList.Keys).ToArray();
                 object[] removals = _deviceList.Keys.Except(devices).ToArray();
 
-                foreach (object addition in additions)
+                if (additions.Length > 0)
                 {
-                    HidDevice device;
-                    if (TryCreateDevice(addition, out device))
+                    int completedAdditions = 0;
+
+                    foreach (object addition in additions)
                     {
-                        // By not adding on failure, we'll end up retrying every time.
-                        _deviceList.Add(addition, device);
+                        ThreadPool.QueueUserWorkItem(new WaitCallback(addition_ =>
+                            {
+                                HidDevice device; object creationState;
+                                bool created = TryCreateDevice(addition_, out device, out creationState);
+
+                                if (created)
+                                {
+                                    // By not adding on failure, we'll end up retrying every time.
+                                    lock (_deviceList) { _deviceList.Add(addition_, device); }
+                                }
+
+                                lock (_deviceList)
+                                {
+                                    completedAdditions++; Monitor.Pulse(_deviceList);
+                                }
+
+                                if (created)
+                                {
+                                    CompleteDevice(addition_, device, creationState);
+                                }
+                            }), addition);
+                    }
+
+                    lock (_deviceList)
+                    {
+                        while (completedAdditions != additions.Length) { Monitor.Wait(_deviceList); }
                     }
                 }
 
@@ -79,7 +102,9 @@ namespace HidSharp.Platform
 
         protected abstract object[] Refresh();
 
-        protected abstract bool TryCreateDevice(object key, out HidDevice device);
+        protected abstract bool TryCreateDevice(object key, out HidDevice device, out object creationState);
+
+        protected abstract void CompleteDevice(object key, HidDevice device, object creationState);
 
         public abstract bool IsSupported
         {

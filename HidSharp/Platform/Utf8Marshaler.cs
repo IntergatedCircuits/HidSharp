@@ -15,13 +15,12 @@
 #endregion
 
 using System;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
 namespace HidSharp.Platform
 {
-    class Utf8Marshaler : ICustomMarshaler
+    sealed class Utf8Marshaler : ICustomMarshaler
     {
         bool _allocated; // workaround for Mono bug 4722
 

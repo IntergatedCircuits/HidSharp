@@ -66,11 +66,11 @@ namespace HidSharp.Platform.Linux
 									var error = (NativeMethods.error)Marshal.GetLastWin32Error();
 									if (error == NativeMethods.error.EACCES)
 									{
-										throw new UnauthorizedAccessException("Not permitted to open HID device at " + devnode + ".");
+										throw new UnauthorizedAccessException("Not permitted to open HID class device at " + devnode + ".");
 									}
 									else
 									{
-										throw new IOException("Unable to open HID device (" + error.ToString() + ").");
+										throw new IOException("Unable to open HID class device (" + error.ToString() + ").");
 									}
 								}
 								return handle;
@@ -88,7 +88,7 @@ namespace HidSharp.Platform.Linux
 				}
 			}
 			
-			throw new FileNotFoundException("HID device not found.");
+			throw new FileNotFoundException("HID class device not found.");
 		}
 		
         internal void Init(string path, LinuxHidDevice device)
@@ -259,6 +259,11 @@ namespace HidSharp.Platform.Linux
         public override void SetFeature(byte[] buffer, int offset, int count)
         {
             throw new NotSupportedException(); // TODO
+        }
+
+        public override HidDevice Device
+        {
+            get { return _device; }
         }
     }
 }

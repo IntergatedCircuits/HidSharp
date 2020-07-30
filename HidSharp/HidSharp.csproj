@@ -29,6 +29,7 @@
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RegisterForComInterop>false</RegisterForComInterop>
+    <DocumentationFile>..\bin\HidSharp.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -39,12 +40,14 @@
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RegisterForComInterop>true</RegisterForComInterop>
+    <DocumentationFile>..\bin\HidSharp.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AsyncResult.cs" />
+    <Compile Include="Throw.cs" />
     <Compile Include="HidDevice.cs" />
     <Compile Include="HidDeviceLoader.cs" />
     <Compile Include="HidStream.cs" />
