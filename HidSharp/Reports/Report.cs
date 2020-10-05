@@ -127,6 +127,13 @@ namespace HidSharp.Reports
             _computed = true;
         }
 
+        public byte[] CreateBuffer()
+        {
+            byte[] buffer = new byte[Length];
+            buffer[0] = ReportID;
+            return buffer;
+        }
+
         public DeviceItem DeviceItem
         {
             get;
