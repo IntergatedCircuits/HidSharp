@@ -19,6 +19,7 @@ using System;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using HidSharp.Reports;
 
@@ -97,6 +98,13 @@ namespace HidSharp
         public virtual byte[] GetRawReportDescriptor()
         {
             throw new NotSupportedException(); // Windows reconstructs it. Linux can retrieve it. MacOS 10.8+ can retrieve it as well.
+        }
+
+        public uint GetTopLevelUsage()
+        {
+            var reportDescriptor = GetReportDescriptor();
+            var ditem = reportDescriptor.DeviceItems.FirstOrDefault();
+            return ditem.Usages.GetAllValues().FirstOrDefault();
         }
 
         /*
