@@ -117,8 +117,15 @@ namespace HidSharp.Platform.Windows
 
         public static readonly int HIDP_STATUS_SUCCESS = HIDP_ERROR_CODES(0, 0);
         public static readonly int HIDP_STATUS_INVALID_PREPARSED_DATA = HIDP_ERROR_CODES(12, 1);
+        public static readonly int HIDP_STATUS_INVALID_REPORT_TYPE = HIDP_ERROR_CODES(12, 2);
+        public static readonly int HIDP_STATUS_INVALID_REPORT_LENGTH = HIDP_ERROR_CODES(12, 3);
         public static readonly int HIDP_STATUS_USAGE_NOT_FOUND = HIDP_ERROR_CODES(12, 4);
+        public static readonly int HIDP_STATUS_BUFFER_TOO_SMALL = HIDP_ERROR_CODES(12, 7);
+        public static readonly int HIDP_STATUS_INCOMPATIBLE_REPORT_ID = HIDP_ERROR_CODES(12, 10);
+        public static readonly int HIDP_STATUS_NOT_VALUE_ARRAY = HIDP_ERROR_CODES(12, 11);
         public static readonly int HIDP_STATUS_IS_VALUE_ARRAY = HIDP_ERROR_CODES(12, 12);
+        public static readonly int HIDP_STATUS_REPORT_DOES_NOT_EXIST = HIDP_ERROR_CODES(12, 16);
+        public static readonly int HIDP_STATUS_NOT_IMPLEMENTED = HIDP_ERROR_CODES(12, 32);
         public static readonly uint IOCTL_HID_GET_REPORT_DESCRIPTOR = HID_CTL_CODE(1);
         public static readonly uint IOCTL_USB_GET_NODE_INFORMATION = CTL_CODE(FILE_DEVICE_UNKNOWN, 258, METHOD_BUFFERED, FILE_ANY_ACCESS);
         public static readonly uint IOCTL_USB_GET_NODE_CONNECTION_INFORMATION = CTL_CODE(FILE_DEVICE_UNKNOWN, 259, METHOD_BUFFERED, FILE_ANY_ACCESS);
