@@ -168,7 +168,18 @@ namespace HidSharp.Platform.Windows
                             }
                             else
                             {
-                                throw new NotImplementedException();
+                                // TODO need to set the usage value array here instead
+
+                                // but we only want to find the bit offset, let's just do an educated guess
+                                if (reportItemIndex == 0)
+                                {
+                                    reportItem.BitOffset = 0;
+                                }
+                                else
+                                {
+                                    var prevItem = reportItemList[reportItemIndex - 1];
+                                    reportItem.BitOffset = prevItem.BitOffset + prevItem.ReportCount * prevItem.ReportSize;
+                                }
                             }
                         }
                         else
