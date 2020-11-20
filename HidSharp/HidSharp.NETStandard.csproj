@@ -10,4 +10,8 @@
     <DocumentationFile>..\bin\netstandard2.0\HidSharp.XML</DocumentationFile>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+
 </Project>
