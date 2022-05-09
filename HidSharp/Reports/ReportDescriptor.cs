@@ -163,11 +163,11 @@ namespace HidSharp.Reports
                     switch (item.TagForGlobal)
                     {
                         case GlobalItemTag.Push:
-                            State.GlobalItemStateStack.Add(new Dictionary<GlobalItemTag, EncodedItem>(State.GlobalItemState));
+                            State.GlobalItemStateStack.Push(new Dictionary<GlobalItemTag, EncodedItem>(State.GlobalItemState));
                             break;
 
                         case GlobalItemTag.Pop:
-                            State.GlobalItemStateStack.RemoveAt(State.GlobalItemState.Count - 1);
+                            State.GlobalItemStateStack.Pop();
                             break;
 
                         case GlobalItemTag.ReportID:

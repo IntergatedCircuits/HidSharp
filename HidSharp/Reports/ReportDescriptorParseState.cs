@@ -27,7 +27,7 @@ namespace HidSharp.Reports
         public ReportDescriptorParseState()
         {
             RootItem = new DescriptorCollectionItem();
-            GlobalItemStateStack = new List<IDictionary<GlobalItemTag, EncodedItem>>();
+            GlobalItemStateStack = new Stack<IDictionary<GlobalItemTag, EncodedItem>>();
             LocalItemState = new List<KeyValuePair<LocalItemTag, uint>>();
             Reset();
         }
@@ -39,7 +39,7 @@ namespace HidSharp.Reports
             RootItem.CollectionType = 0;
 
             GlobalItemStateStack.Clear();
-            GlobalItemStateStack.Add(new Dictionary<GlobalItemTag, EncodedItem>());
+            GlobalItemStateStack.Push(new Dictionary<GlobalItemTag, EncodedItem>());
             LocalItemState.Clear();
         }
 
@@ -75,10 +75,10 @@ namespace HidSharp.Reports
 
         public IDictionary<GlobalItemTag, EncodedItem> GlobalItemState
         {
-            get { return GlobalItemStateStack[GlobalItemStateStack.Count - 1]; }
+            get { return GlobalItemStateStack.Peek(); }
         }
 
-        public IList<IDictionary<GlobalItemTag, EncodedItem>> GlobalItemStateStack
+        public Stack<IDictionary<GlobalItemTag, EncodedItem>> GlobalItemStateStack
         {
             get;
             private set;
