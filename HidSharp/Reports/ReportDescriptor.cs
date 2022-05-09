@@ -170,13 +170,10 @@ namespace HidSharp.Reports
                             State.GlobalItemStateStack.RemoveAt(State.GlobalItemState.Count - 1);
                             break;
 
+                        case GlobalItemTag.ReportID:
+                            ReportsUseID = true;
+                            goto default;
                         default:
-                            switch (item.TagForGlobal)
-                            {
-                                case GlobalItemTag.ReportID:
-                                    ReportsUseID = true; break;
-                            }
-
                             State.GlobalItemState[item.TagForGlobal] = item;
                             break;
                     }
