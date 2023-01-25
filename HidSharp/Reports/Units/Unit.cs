@@ -63,12 +63,14 @@ namespace HidSharp.Reports.Units
 
         /// <summary>
         /// Decodes an encoded HID unit exponent.
+        /// The HID Usage Table 1.3 states that valid values for the unit 
+        /// exponent field are 0x_0 - 0x_F so we ignore the first nibble.
         /// </summary>
         /// <param name="value">The encoded exponent.</param>
         /// <returns>The exponent.</returns>
         public static int DecodeExponent(uint value)
         {
-            if (value > 15) { throw new ArgumentOutOfRangeException("value", "Value range is [0, 15]."); }
+            value &= 0x0f;
             return value >= 8 ? (int)value - 16 : (int)value;
         }
 
