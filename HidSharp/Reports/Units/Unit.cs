@@ -64,7 +64,7 @@ namespace HidSharp.Reports.Units
         /// <summary>
         /// Decodes an encoded HID unit exponent.
         /// The HID Usage Table 1.3 states that valid values for the unit 
-        /// exponent field are 0x_0 - 0x_F so we ignore the first nibble.
+        /// exponent field are 0x_0 - 0x_F so we ignore the high nibble.
         /// </summary>
         /// <param name="value">The encoded exponent.</param>
         /// <returns>The exponent.</returns>
