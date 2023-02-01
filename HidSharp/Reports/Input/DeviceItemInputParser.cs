@@ -121,9 +121,19 @@ namespace HidSharp.Reports.Input
                 var rangeOfElementsByIndexOfDataItem = _rangesOfElementsByIndexOfDataItem[reportIndex];
                 report.Read(buffer, offset, (reportBuffer, bitOffset, dataItem, indexOfDataItem) =>
                     {
+                        // This usage value is of no use.
+                        if (dataItem.Usages.GetAllValues().FirstOrDefault() == 0)
+                        {
+                            return;
+                        }
+
                         int dataItemStartElement = rangeOfElementsByIndexOfDataItem[indexOfDataItem];
                         int dataItemEndElement = rangeOfElementsByIndexOfDataItem[indexOfDataItem + 1];
-                        if (dataItemStartElement == dataItemEndElement) { return; } // We skipped this one.
+                        // We skipped this one.
+                        if (dataItemStartElement == dataItemEndElement)
+                        {
+                            return;
+                        }
 
                         int elementCount = dataItem.ElementCount;
                         for (int elementIndex = 0; elementIndex < elementCount; elementIndex++)
@@ -132,6 +142,12 @@ namespace HidSharp.Reports.Input
                             if (dataItem.TryReadValue(reportBuffer, bitOffset, elementIndex, out newDataValue))
                             {
                                 int indexOfElement = dataItemStartElement + newDataValue.DataIndex;
+                                // This index is out of bounds.
+                                if (indexOfElement >= _newDataValues.Count())
+                                {
+                                    continue;
+                                }
+
                                 _newDataValues[indexOfElement] = newDataValue;
                             }
                         }

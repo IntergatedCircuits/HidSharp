@@ -69,8 +69,6 @@ namespace HidSharp.Platform.Windows
 
             void PadReport(MainItemTag mainItemTag, int padToBit, ref int currentBit)
             {
-                if (currentBit > padToBit) { throw new NotImplementedException(); } // Overlapping...
-
                 // Padding...
                 int paddingBitCount = padToBit - currentBit;
                 if (paddingBitCount > 0)
@@ -195,11 +193,20 @@ namespace HidSharp.Platform.Windows
                     var reportItems = report.Where(x => x.BitOffset != maxBit).OrderBy(x => x.BitOffset).ToArray();
                     foreach (var reportItem in reportItems)
                     {
-                        var button = reportItem.Button;
                         var item = reportItem.Item;
                         int startBit = reportItem.BitOffset;
                         int bitCount = reportItem.ReportCount * reportItem.ReportSize;
-                        if (currentBit > startBit) { throw new NotImplementedException(); } // Overlapping...
+
+                        // This usage value is of no use.
+                        if (item.UsageIndex == 0)
+                        {
+                            continue;
+                        }
+                        // This report item overlaps another.
+                        if (currentBit > startBit)
+                        {
+                            break;
+                        }
 
                         SetCollection(item.LinkCollection);
                         PadReport(mainItemTag, startBit, ref currentBit);
@@ -218,7 +225,7 @@ namespace HidSharp.Platform.Windows
                             _builder.AddLocalItem(LocalItemTag.Usage, usageMin);
                         }
 
-                        if (button)
+                        if (reportItem.Button)
                         {
                             AddButtonGlobalItems(reportItem.ReportCount);
                         }
