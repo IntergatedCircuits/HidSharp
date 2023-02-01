@@ -193,13 +193,14 @@ namespace HidSharp.Platform.Windows
                     int currentBit = 0;
 
                     var reportItems = report.Where(x => x.BitOffset != maxBit).OrderBy(x => x.BitOffset).ToArray();
-                    foreach (var reportItem in reportItems)
+                    foreach (var reportItem in reportItems) 
                     {
-                        var button = reportItem.Button;
                         var item = reportItem.Item;
                         int startBit = reportItem.BitOffset;
                         int bitCount = reportItem.ReportCount * reportItem.ReportSize;
-                        if (currentBit > startBit) { throw new NotImplementedException(); } // Overlapping...
+
+                        if (item.UsageIndex == 0) { continue; } // This usage value is of no use.
+                        if (currentBit > startBit) { break; } // This report item overlaps another.
 
                         SetCollection(item.LinkCollection);
                         PadReport(mainItemTag, startBit, ref currentBit);
@@ -218,7 +219,7 @@ namespace HidSharp.Platform.Windows
                             _builder.AddLocalItem(LocalItemTag.Usage, usageMin);
                         }
 
-                        if (button)
+                        if (reportItem.Button)
                         {
                             AddButtonGlobalItems(reportItem.ReportCount);
                         }
@@ -324,10 +325,10 @@ namespace HidSharp.Platform.Windows
             {
                 _builder = new ReportDescriptorBuilder();
                 _preparsed = preparsed;
-
+                
                 _nodes = new NativeMethods.HIDP_LINK_COLLECTION_NODE[caps.NumberLinkCollectionNodes]; int nodeCount = _nodes.Length;
                 if (NativeMethods.HidP_GetLinkCollectionNodes(_nodes, ref nodeCount, preparsed) != NativeMethods.HIDP_STATUS_SUCCESS || nodeCount != _nodes.Length) { throw new NotImplementedException(); }
-
+                
                 _types = new ReportCaps[(int)NativeMethods.HIDP_REPORT_TYPE.Count];
                 GetReportCaps(NativeMethods.HIDP_REPORT_TYPE.Input, caps.NumberInputButtonCaps, caps.NumberInputValueCaps, caps.InputReportByteLength);
                 GetReportCaps(NativeMethods.HIDP_REPORT_TYPE.Output, caps.NumberOutputButtonCaps, caps.NumberOutputValueCaps, caps.OutputReportByteLength);
