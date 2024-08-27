@@ -53,20 +53,20 @@ namespace HidSharp.Platform.Linux
                     int fd = NativeMethodsLibudev.Instance.udev_monitor_get_fd(monitor);
                     RunAssert(fd >= 0, "HidSharp udev_monitor_get_fd failed.");
 
-                    var fds = new NativeMethods.pollfd[1];
-                    fds[0].fd = fd;
-                    fds[0].events = NativeMethods.pollev.IN;
+                    var pfd = new NativeMethods.pollfd();
+                    pfd.fd = fd;
+                    pfd.events = NativeMethods.pollev.IN;
 
                     readyCallback();
                     while (true)
                     {
-                        ret = NativeMethods.retry(() => NativeMethods.poll(fds, (IntPtr)1, -1));
+                        ret = NativeMethods.retry(() => NativeMethods.poll(ref pfd, (IntPtr)1, -1));
                         if (ret < 0) { break; }
 
                         if (ret == 1)
                         {
-                            if (0 != (fds[0].revents & (NativeMethods.pollev.ERR | NativeMethods.pollev.HUP | NativeMethods.pollev.NVAL))) { break; }
-                            if (0 != (fds[0].revents & NativeMethods.pollev.IN))
+                            if (0 != (pfd.events & (NativeMethods.pollev.ERR | NativeMethods.pollev.HUP | NativeMethods.pollev.NVAL))) { break; }
+                            if (0 != (pfd.events & NativeMethods.pollev.IN))
                             {
                                 IntPtr device = NativeMethodsLibudev.Instance.udev_monitor_receive_device(monitor);
                                 if (device != null)
